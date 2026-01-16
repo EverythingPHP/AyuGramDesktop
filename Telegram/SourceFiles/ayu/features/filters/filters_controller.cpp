@@ -28,6 +28,7 @@
 #include "filters_utils.h"
 #include "shadow_ban_utils.h"
 #include "ayu/utils/telegram_helpers.h"
+#include <FunctionsOnFilter.h>
 
 namespace FiltersController {
 
@@ -117,12 +118,25 @@ bool isBlocked(const not_null<HistoryItem*> item) {
 
 	return settings.filtersEnabled &&
 	(
-		((item->from()->isUser() || item->from()->isBroadcast()) && ShadowBanUtils::isShadowBanned(getDialogIdFromPeer(item->from()))) ||
+		(item->from()->isUser() &&  ShadowBanUtils::isShadowBanned(getDialogIdFromPeer(item->from()))) || 
+		(item->from()->isChannel() && ShadowBanUtils::isShadowBanned(getDialogIdFromPeer(item->from()))) ||
 		(settings.hideFromBlocked && blocked)
 	);
 }
 
 bool filtered(const not_null<HistoryItem*> item) {
+	/*
+	Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
+	AyuGram Plugin engine, 2025
+	Follows GNU GPL v3 and Telegram Desktop licensing.
+	*/
+
+	for (size_t i = 0; i < FunctionsOnFilter.size(); i++) {
+		if (FunctionsOnFilter.at(i)(item)) {
+			return true;
+		}
+	}
+
 	const auto &settings = AyuSettings::getInstance();
 	if (!settings.filtersEnabled) {
 		return false;
@@ -140,8 +154,12 @@ bool filtered(const not_null<HistoryItem*> item) {
 	if (cached.has_value()) {
 		return cached.value();
 	}
-	const auto group = item->history()->owner().groups().find(item);
-	const auto res = isFiltered(FilterUtils::extractAllText(item, group), getDialogIdFromPeer(item->history()->peer));
+	const auto res = isFiltered(FilterUtils::extractAllText(item), getDialogIdFromPeer(item->history()->peer));
+	if(isFiltered(item->from()->about(), getDialogIdFromPeer(item->history()->peer)).value_or(false) ||
+		isFiltered(item->from()->name(), getDialogIdFromPeer(item->history()->peer)).value_or(false)) {
+		FiltersCacheController::putFiltered(item, true);
+		return true;
+	}
 
 	// sometimes item has empty text.
 	// so we cache result only if

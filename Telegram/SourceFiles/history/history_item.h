@@ -437,8 +437,9 @@ public:
 	[[nodiscard]] bool hasHiddenLinks() const;
 
 	[[nodiscard]] bool emptyText() const {
-		return _text.empty();
-	}
+		return _text.empty(); }
+	[[nodiscard]] TextWithEntities getText() const { return _text; }
+
 
 	[[nodiscard]] bool canPin() const;
 	[[nodiscard]] bool canBeEdited() const;
