@@ -66,7 +66,8 @@ std::optional<bool> isFiltered(const QString &str, uint64 dialogId) {
 		return false;
 	};
 
-	if (const auto &dialogPatterns = FiltersCacheController::getPatternsByDialogId(dialogId); dialogPatterns.has_value() && !dialogPatterns.value().empty()) {
+	const auto &dialogPatterns = FiltersCacheController::getPatternsByDialogId(dialogId);
+	if (dialogPatterns.has_value() && !dialogPatterns.value().empty()) {
 		for (const auto &pattern : dialogPatterns.value()) {
 			if (matches(pattern)) {
 				return true;
@@ -75,7 +76,8 @@ std::optional<bool> isFiltered(const QString &str, uint64 dialogId) {
 	}
 
 	const auto &exclusions = FiltersCacheController::getExclusionsByDialogId(dialogId);
-	if (const auto &sharedPatterns = FiltersCacheController::getSharedPatterns(); !sharedPatterns.empty()) {
+	const auto &sharedPatterns = FiltersCacheController::getSharedPatterns();
+	if (!sharedPatterns.empty()) {
 		for (const auto &pattern : sharedPatterns) {
 			if (exclusions.has_value() && exclusions.value().contains(pattern)) {
 				continue;
@@ -90,7 +92,7 @@ std::optional<bool> isFiltered(const QString &str, uint64 dialogId) {
 
 bool isEnabled(not_null<PeerData*> peer) {
 	const auto &settings = AyuSettings::getInstance();
-	return settings.filtersEnabled && (settings.filtersEnabledInChats || (!peer->isMegagroup() && !peer->isGigagroup() && !peer->isUser()));
+	return settings.filtersEnabled && (settings.filtersEnabledInChats || peer->isBroadcast());
 }
 
 bool isBlocked(const not_null<HistoryItem*> item) {
@@ -163,10 +165,19 @@ bool filtered(const not_null<HistoryItem*> item) {
 	// so we cache result only if
 	// processed item is filterable
 	if (res.has_value()) {
-		FiltersCacheController::putFiltered(item, res.value());
+		FiltersCacheController::putFiltered(item, group, res.value());
 		return res.value();
 	}
 	return false;
+}
+
+void invalidate(not_null<HistoryItem*> item) {
+	const auto &settings = AyuSettings::getInstance();
+	if (!settings.filtersEnabled) {
+		return;
+	}
+
+	FiltersCacheController::invalidate(item);
 }
 
 }

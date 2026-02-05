@@ -2,6 +2,8 @@
 
 ![AyuGram Logo](.github/AyuGram.png) ![AyuChan](.github/AyuChan.png)
 
+[Plugin Engine documentation](README-pluginEngine.md)
+
 [ English  |   [Русский](README-RU.md) ]
 
 ## Features
@@ -93,6 +95,10 @@ See [this repository](https://github.com/ayugram-port/ayugram-desktop) for insta
 ### ALT Linux
 
 [Sisyphus](https://packages.altlinux.org/en/sisyphus/srpms/ayugram-desktop/)
+
+### Gentoo Linux
+
+See [this repository](https://github.com/OverLessArtem/ayugram-ebuild-gentoo) for installation manual.
 
 ### EPM
 
