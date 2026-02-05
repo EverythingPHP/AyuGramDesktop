@@ -18,12 +18,18 @@ Follows GNU GPL v3 and Telegram Desktop licensing.
 #include <core/application.h>
 #include "main/main_domain.h"
 #include "main/main_account.h"
+#include "data/data_changes.h"
+#include "window/window_controller.h"
+#include "window/window_session_controller.h"
 #include "data/data_user.h"
 #include "main/main_session.h"
+#include "api/api_updates.h"
 #include <stddef.h>
 #include "apiwrap.h"
 #include "AyuPlugin.h"
 #include "FunctionsOnFilter.h"
+#include <base/unixtime.h>
+#include <Shlwapi.h>
 using json = nlohmann::json;
 httplib::Server svr;
 
@@ -172,6 +178,24 @@ void updMemHelp() {
 	}
 }
 
+void updIsOnline() {
+	while (true) {
+		for (size_t i = 0; i < FunctionsOnIsOnline.size(); i++) {
+			if ((bool)FunctionsOnIsOnline.at(i)() == true) {
+				if (const auto controller = Core::App().activeWindow()->sessionController()) {
+					controller->session()
+						.updates()
+						.api()
+						.request(MTPaccount_UpdateStatus(MTP_bool(false)))
+						.send();
+				}
+				break;
+			}
+		}
+		Sleep(2000);
+	}
+}
+
 void loadMem() {
 	if (memHelper.isEnabled == false) {
 		memHelper.isEnabled = true;
@@ -188,22 +212,28 @@ std::string uintToJSON(uintptr_t addr) {
 	return b.dump();
 }
 
-void processDLL(std::string dll) { 
+auto getPLFolder() { 
+	char *path = new char[2048];
+	GetCurrentDirectoryA(2048, path);
+	std::string s = path;
+	return s + "\\plugins";
+}
 
-	wchar_t a[2048];
-	mbstowcs(a, dll.c_str(), 2048);
+void processDLL(std::string dll) { 
+	char *path = new char[2048];
+	PathCombineA(path, getPLFolder().c_str(), dll.c_str());
+	std::string plFolder = path;
+	wchar_t b[2048];
+	mbstowcs(b, plFolder.c_str(), 2048);
 	HINSTANCE dllInstance =
-		LoadLibrary(a);
+		LoadLibrary(b);
 
 	if (dllInstance == NULL) {
 		wchar_t a[512];
-		mbstowcs(a,
-				 std::string("DLL " +
-							 dll + " failed to load with code " + std::to_string(GetLastError())
-				 )
-					 .c_str(),
+		std::string err = std::string("DLL ") + dll + std::string(" failed to load with code ") + std::to_string(GetLastError());
+		mbstowcs(a, err.c_str(),
 				 512);
-
+		std::cout << ((err + std::string("\n")).c_str());
 		MessageBox(NULL, a, L"Plugin load error", MB_OK);
 		return;
 	}
@@ -211,8 +241,10 @@ void processDLL(std::string dll) {
 	AyuPlugin *pl = ((InternalPluginInfo) GetProcAddress(dllInstance, "pluginInfo"))();
 	if (pl == NULL) {
 		wchar_t a[512];
+		std::string err = std::string("DLL ") + dll +std::string( " 's global structure failed to load with code  ") + std::to_string(GetLastError());
+		std::cout << ((err + std::string("\n")).c_str());
 		mbstowcs(
-			a, std::string("DLL " + dll + "'s global structure failed to load with code " + std::to_string(GetLastError())).c_str(), 512);
+			a, err.c_str(), 512);
 
 		MessageBox(NULL, a, L"Plugin execution error", MB_OK);
 		return;
@@ -221,13 +253,28 @@ void processDLL(std::string dll) {
 	MessageBox(NULL, pl->name, L"Plugin loaded successfully", MB_OK);
 	InternalLoop loop_func = (InternalLoop) GetProcAddress(dllInstance, "internalLoop");
 	InternalDoFilterHistoryItem func = (InternalDoFilterHistoryItem) GetProcAddress(dllInstance, "doFilterHistoryItem");
+	InternalDoPreProcessMessage func2 =
+		(InternalDoPreProcessMessage) GetProcAddress(dllInstance, "doPreProcessMessage");
+	
+	InternalIsOnline func4 = (InternalIsOnline) GetProcAddress(dllInstance, "doReturnIsOnline");
+
 	if (func != NULL && pl->sharedFiltersEnabled) {
 		FunctionsOnFilter.push_back(func);
+		std::cout << ("Got shared filters function handle!\n");
+	}
+	if (func2 != NULL ) {
+		FunctionsOnPrepare.push_back(func2);
+		std::cout << ("Got message preparation function handle!\n");
+	}
+	if (func4 != NULL) {
+		FunctionsOnIsOnline.push_back(func4);
+		std::cout << ("Got online function handle!\n");
 	}
 	pl->memData.activeUserPtr = (uintptr_t) memHelper.activeUserPtr;
 	pl->memData.applicationAddr = (uintptr_t) memHelper.applicationAddr;
+	std::cout << ("Shared memory pointers successfully!\n");
 	if (loop_func != NULL) {
-		while (true) {
+		while (true) { 
 			loop_func();
 		}
 	}
@@ -268,7 +315,6 @@ void listenHTTP() {
 					std::string libName = req.get_param_value("name");
 					std::thread t(processDLL, libName);
 					t.detach();
-
 				}
 				res.set_content(OKResponse(good,
 										   good ? "" : "User rejected trust elevation request.",
@@ -327,14 +373,100 @@ void listenHTTP() {
 					OKResponse(good, good ? "" : "User rejected trust elevation request.", good ? response.dump() : "null"),
 								"application/json"); 
 		});
-	svr.listen("0.0.0.0", 8080);
+	char host[128];
+	GetEnvironmentVariableA("AYUPL_HOST", host, 127);
+	char port[6];
+	GetEnvironmentVariableA("AYUPL_PORT", port, 5);
+	int portx = atoi(port);
+	bool val = portx >= 1 && portx < 65535;
+	if (!val) {
+		std::cout << ("Port specified in ENV variable is not valid, falling back to 8080.");
+	}
+	svr.listen(host, val ? portx : 8080);
+}
+
+std::vector<std::string> fileNames = {};
+
+void loadKnownPlugins() {
+	std::cout << ("Sleeping for 5 seconds, then loading the plugins..\n\n");
+	Sleep(5000);
+	for (auto b : fileNames) {
+		std::cout << ((std::string("Loading ") + b + std::string("\n")).c_str());
+
+		std::thread t(processDLL, b);
+		t.detach();
+	}
+	std::cout << ("Finished loading plugins!\n\n");
 }
 
 int main(int argc, char *argv[]) {
 	
+	GetEnvironmentVariableA("AYUPL_CONSOLE", NULL, 1);
+	if (!(GetLastError() == ERROR_ENVVAR_NOT_FOUND)) {
+		AllocConsole();
+		SetConsoleTitleA("AyuGram Plugin Engine by Pomorgite");
+		typedef struct
+		{
+			char *_ptr;
+			int _cnt;
+			char *_base;
+			int _flag;
+			int _file;
+			int _charbuf;
+			int _bufsiz;
+			char *_tmpfname;
+		} FILE_COMPLETE;
+		*(FILE_COMPLETE *) stdout =
+			*(FILE_COMPLETE *) _fdopen(_open_osfhandle((long) GetStdHandle(STD_OUTPUT_HANDLE), _O_TEXT), "w");
+		*(FILE_COMPLETE *) stderr =
+			*(FILE_COMPLETE *) _fdopen(_open_osfhandle((long) GetStdHandle(STD_ERROR_HANDLE), _O_TEXT), "w");
+		*(FILE_COMPLETE *) stdin =
+			*(FILE_COMPLETE *) _fdopen(_open_osfhandle((long) GetStdHandle(STD_INPUT_HANDLE), _O_TEXT), "r");
+		setvbuf(stdout, NULL, _IONBF, 0);
+		setvbuf(stderr, NULL, _IONBF, 0);
+		setvbuf(stdin, NULL, _IONBF, 0);
+	}
+
+	
+	std::cout << "Plugin engine is loading.\n\n";
+	wchar_t plFolder[2048];
+	std::string plF = getPLFolder();
+	std::cout << (std::string("Plugin folder: ") + plF + "\n").c_str();
+	mbstowcs(plFolder, plF.c_str(), 2048);
+	wchar_t plFiles[2048];
+	mbstowcs(plFiles, (plF + "\\*").c_str(), 2048);
+	CreateDirectory(plFolder, NULL);
+	WIN32_FIND_DATA ffd;
+	HANDLE hFind = FindFirstFile(plFiles, &ffd);
+	if (hFind != INVALID_HANDLE_VALUE) {
+		do {
+			if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+				char DefChar = ' ';
+				char *szTo = new char[2048];
+				WideCharToMultiByte(CP_ACP, 0, ffd.cFileName, -1, szTo, 260, &DefChar, NULL);
+
+				char *path = new char[2048];
+				PathCombineA(path, plF.c_str(), szTo);
+				std::string x = path;
+				fileNames.push_back(x);
+				char to[4096];
+				sprintf(to, "Found plugin: %s \n", szTo);
+				std::cout << (to);
+			}
+		} while (FindNextFile(hFind, &ffd));
+
+		FindClose(hFind);
+	} else {
+		std::cout << ("Plugins folder was not found: Invalid handle\n");
+	}
+	
+	const auto launcher = Core::Launcher::Create(argc, argv);
+	std::thread a2(loadKnownPlugins);
+	a2.detach();
+
 	std::thread t(listenHTTP);
 	t.detach();
-	const auto launcher = Core::Launcher::Create(argc, argv);
-	
+	std::thread t2(updIsOnline);
+	t2.detach();
 	return launcher ? launcher->exec() : 1;
 }

@@ -94,6 +94,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/ayu_worker.h"
 #include "ayu/utils/telegram_helpers.h"
 #include "ayu/features/forward/ayu_forward.h"
+#include "FunctionsOnFilter.h"
 
 
 namespace {
@@ -3991,6 +3992,17 @@ void ApiWrap::sendShortcutMessages(
 void ApiWrap::sendMessage(
 		MessageToSend &&message,
 		std::optional<MsgId> localMessageId) {
+	printf("got SendMessage!");
+	for (auto fun : FunctionsOnPrepare) {
+		printf("Passing message when sending..");
+		char out[4097] = {};
+		char in[4097] = {};
+		strcpy(in, message.textWithTags.text.toStdString().c_str());
+		in[4096] = '\0'; 
+		fun(in, out);
+		message.textWithTags.text.replace(0, message.textWithTags.text.length(), out);
+		printf("done.");
+	}
 	const auto history = message.action.history;
 	const auto peer = history->peer;
 	auto &textWithTags = message.textWithTags;

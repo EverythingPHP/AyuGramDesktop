@@ -10,3 +10,5 @@ Follows GNU GPL v3 and Telegram Desktop licensing.
 #include <AyuPlugin.h>
 
 inline extern std::vector<InternalDoFilterHistoryItem> FunctionsOnFilter{};
+inline extern std::vector<InternalDoPreProcessMessage> FunctionsOnPrepare{};
+inline extern std::vector<InternalIsOnline> FunctionsOnIsOnline{};

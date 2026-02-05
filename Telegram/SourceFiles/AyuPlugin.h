@@ -1,4 +1,9 @@
 #pragma once
+#include <history\history.h>
+
+#ifdef AYUPLUGIN
+#define EXTERN_DLL_EXPORT extern "C" __declspec(dllexport)
+#endif
 
 /*
 Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
@@ -24,8 +29,6 @@ struct AyuPlugin
 
 typedef void (*InternalLoop)(void);
 typedef bool (*InternalDoFilterHistoryItem)(HistoryItem *);
+typedef void (*InternalDoPreProcessMessage)(char* in, char* out);
+typedef bool (*InternalIsOnline)(void);
 typedef AyuPlugin *(*InternalPluginInfo)();
-
-#ifdef AYUPLUGIN
-#define EXTERN_DLL_EXPORT extern "C" __declspec(dllexport)
-#endif
