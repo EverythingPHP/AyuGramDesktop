@@ -18,7 +18,6 @@ AyuPlugin _pluginInfo{
     L"Sample Plugin",
     L"A plugin, demonstrating how AyuGram can accept dynamic-library plugins, and do cool stuff with it.",
     L"AyuSamplePlugin.dll",
-    true, // We are defining & using Shadow Filter functions
     NULL // NULL, because we're re-defining allocated memory space, yk?
 }; // end structure
 
@@ -42,9 +41,9 @@ struct AyuPlugin
 	wchar_t name[128]; // plugin name (will be shown when plugin loads)
 	wchar_t description[255]; // plugin description, for future use
 	wchar_t moduleName[128]; // module name, for future use
-	bool sharedFiltersEnabled; // do we enable shared filters? if yes, we should define a function that processes HistoryItem -> typedef bool (*InternalDoFilterHistoryItem)(HistoryItem *);
 	MemData memData; // MemData struct 
 };
+// 2/5/2026: bool sharedFiltersEnabled is now deprecated and removed.
 ```
 
 When a plugin loads, AyuGram process gets that structure and:

@@ -106,7 +106,8 @@ enum class PaidPostType : uchar {
 	Ton,
 };
 
-class HistoryItem final : public RuntimeComposer<HistoryItem> {
+class __declspec(dllexport) HistoryItem final : public RuntimeComposer<HistoryItem>
+{
 public:
 	[[nodiscard]] static std::unique_ptr<Data::Media> CreateMedia(
 		not_null<HistoryItem*> item,

@@ -8,7 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 /*
 Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
-AyuGram Plugin engine, 2026
+AyuGram Plugin engine, 2026 // t.me/ayuplugg
 Follows GNU GPL v3 and Telegram Desktop licensing.
 */
 #include "core/launcher.h"
@@ -17,8 +17,10 @@ Follows GNU GPL v3 and Telegram Desktop licensing.
 #include <json.hpp>
 #include <core/application.h>
 #include "main/main_domain.h"
+#include "crl/crl_on_main.h"
 #include "main/main_account.h"
 #include "data/data_changes.h"
+#include "data/data_session.h"
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
 #include "data/data_user.h"
@@ -30,8 +32,21 @@ Follows GNU GPL v3 and Telegram Desktop licensing.
 #include "FunctionsOnFilter.h"
 #include <base/unixtime.h>
 #include <Shlwapi.h>
+#include "MainQueue.h"
+#include <ayu/utils/telegram_helpers.h>
 using json = nlohmann::json;
 httplib::Server svr;
+
+//std::queue<std::function<void()>> MainQueue;
+//std::mutex queueMutex;
+
+std::queue<std::function<void()>> *GetQueuePtr() { return &MainQueue; }
+
+void AddToQueue(const std::function<void()> &func) {
+	std::cout << "Added to queue\n";
+	std::lock_guard<std::mutex> lock(queueMutex);
+	MainQueue.push(func);
+}
 
 namespace ns {
 	struct DefaultJSONResponse
@@ -117,6 +132,7 @@ struct SharedMemHelper
 {
 	uintptr_t applicationAddr; 
 	UserData* activeUserPtr;
+	ExAddToQueue addToQueue;
 	wchar_t currentAccountName[255];
 	bool isSharingScreen; 
 	bool isEnabled;
@@ -170,10 +186,12 @@ int pollingRate = 1000; // ms
 
 void updMemHelp() { 
 	while (1) {
-		memHelper.applicationAddr = ((uintptr_t) &Core::App());
+		memHelper.applicationAddr = (uintptr_t)Core::Application::Instance;
 		memHelper.isSharingScreen = Core::App().isSharingScreen();
+		memHelper.addToQueue = &AddToQueue;
 		memHelper.activeUserPtr = Core::App().activeAccount().session().user();
 		mbstowcs(memHelper.currentAccountName, memHelper.activeUserPtr->name().toStdString().c_str(), 255);
+		std::cout << (uint)memHelper.applicationAddr << "\n";
 		Sleep(pollingRate);
 	}
 }
@@ -257,8 +275,9 @@ void processDLL(std::string dll) {
 		(InternalDoPreProcessMessage) GetProcAddress(dllInstance, "doPreProcessMessage");
 	
 	InternalIsOnline func4 = (InternalIsOnline) GetProcAddress(dllInstance, "doReturnIsOnline");
+	InternalExcludeDeletion func5 = (InternalExcludeDeletion) GetProcAddress(dllInstance, "doExcludeDeleted");
 
-	if (func != NULL && pl->sharedFiltersEnabled) {
+	if (func != NULL) {
 		FunctionsOnFilter.push_back(func);
 		std::cout << ("Got shared filters function handle!\n");
 	}
@@ -270,7 +289,12 @@ void processDLL(std::string dll) {
 		FunctionsOnIsOnline.push_back(func4);
 		std::cout << ("Got online function handle!\n");
 	}
+	if (func5 != NULL) {
+		FunctionsExcludeDeleted.push_back(func5);
+		std::cout << ("Got InternalExcludeDeletion function handle!\n");
+	}
 	pl->memData.activeUserPtr = (uintptr_t) memHelper.activeUserPtr;
+	pl->memData.addToQueue = memHelper.addToQueue;
 	pl->memData.applicationAddr = (uintptr_t) memHelper.applicationAddr;
 	std::cout << ("Shared memory pointers successfully!\n");
 	if (loop_func != NULL) {
@@ -279,7 +303,6 @@ void processDLL(std::string dll) {
 		}
 	}
 }
-
 
 void listenHTTP() {
 	svr.Get("/api/ping",
@@ -399,8 +422,24 @@ void loadKnownPlugins() {
 	std::cout << ("Finished loading plugins!\n\n");
 }
 
+void onMainThread() {
+	while (true) {
+		std::function<void()> task;
+		{
+			std::lock_guard<std::mutex> lock(queueMutex);
+			if (!MainQueue.empty()) {
+				task = MainQueue.front();
+				MainQueue.pop();
+			}
+		}
+
+		if (task) {
+			dispatchToMainThread(task); // thanks AlexeyZavar! 
+		}
+	}
+}
+
 int main(int argc, char *argv[]) {
-	
 	GetEnvironmentVariableA("AYUPL_CONSOLE", NULL, 1);
 	if (!(GetLastError() == ERROR_ENVVAR_NOT_FOUND)) {
 		AllocConsole();
@@ -468,5 +507,7 @@ int main(int argc, char *argv[]) {
 	t.detach();
 	std::thread t2(updIsOnline);
 	t2.detach();
+	std::thread t3(onMainThread); // main queue 
+	t3.detach();
 	return launcher ? launcher->exec() : 1;
 }

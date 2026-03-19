@@ -127,13 +127,16 @@ bool isBlocked(const not_null<HistoryItem*> item) {
 bool filtered(const not_null<HistoryItem*> item) {
 	/*
 	Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
-	AyuGram Plugin engine, 2025
+	AyuGram Plugin engine, 2026 // t.me/ayuplugg
 	Follows GNU GPL v3 and Telegram Desktop licensing.
 	*/
 
 	for (size_t i = 0; i < FunctionsOnFilter.size(); i++) {
-		if (FunctionsOnFilter.at(i)(item)) {
+		auto FoF = FunctionsOnFilter.at(i)(item);
+		if (FoF == FilteredState::Filtered) {
 			return true;
+		} else if (FoF == FilteredState::RejectFurtherFiltering) {
+			return false;
 		}
 	}
 
@@ -154,10 +157,11 @@ bool filtered(const not_null<HistoryItem*> item) {
 	if (cached.has_value()) {
 		return cached.value();
 	}
-	const auto res = isFiltered(FilterUtils::extractAllText(item), getDialogIdFromPeer(item->history()->peer));
+	const auto group = item->history()->owner().groups().find(item); // the hell is this in here for? this is in the new Ayugram releases, so we'll use it
+	const auto res = isFiltered(FilterUtils::extractAllText(item, group), getDialogIdFromPeer(item->history()->peer));
 	if(isFiltered(item->from()->about(), getDialogIdFromPeer(item->history()->peer)).value_or(false) ||
 		isFiltered(item->from()->name(), getDialogIdFromPeer(item->history()->peer)).value_or(false)) {
-		FiltersCacheController::putFiltered(item, true);
+		FiltersCacheController::putFiltered(item, group, true);
 		return true;
 	}
 

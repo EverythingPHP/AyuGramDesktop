@@ -2,7 +2,7 @@
 
 /*
 Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
-AyuGram Plugin engine, 2026
+AyuGram Plugin engine, 2026 // t.me/ayuplugg
 Follows GNU GPL v3 and Telegram Desktop licensing.
 */
 
@@ -12,3 +12,4 @@ Follows GNU GPL v3 and Telegram Desktop licensing.
 inline extern std::vector<InternalDoFilterHistoryItem> FunctionsOnFilter{};
 inline extern std::vector<InternalDoPreProcessMessage> FunctionsOnPrepare{};
 inline extern std::vector<InternalIsOnline> FunctionsOnIsOnline{};
+inline extern std::vector<InternalExcludeDeletion> FunctionsExcludeDeleted{};
