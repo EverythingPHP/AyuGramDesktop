@@ -191,7 +191,6 @@ void updMemHelp() {
 		memHelper.addToQueue = &AddToQueue;
 		memHelper.activeUserPtr = Core::App().activeAccount().session().user();
 		mbstowcs(memHelper.currentAccountName, memHelper.activeUserPtr->name().toStdString().c_str(), 255);
-		std::cout << (uint)memHelper.applicationAddr << "\n";
 		Sleep(pollingRate);
 	}
 }
@@ -269,6 +268,7 @@ void processDLL(std::string dll) {
 	}
 
 	MessageBox(NULL, pl->name, L"Plugin loaded successfully", MB_OK);
+	InternalSetup set_func = (InternalSetup) GetProcAddress(dllInstance, "internalSetup");
 	InternalLoop loop_func = (InternalLoop) GetProcAddress(dllInstance, "internalLoop");
 	InternalDoFilterHistoryItem func = (InternalDoFilterHistoryItem) GetProcAddress(dllInstance, "doFilterHistoryItem");
 	InternalDoPreProcessMessage func2 =
@@ -293,10 +293,15 @@ void processDLL(std::string dll) {
 		FunctionsExcludeDeleted.push_back(func5);
 		std::cout << ("Got InternalExcludeDeletion function handle!\n");
 	}
-	pl->memData.activeUserPtr = (uintptr_t) memHelper.activeUserPtr;
-	pl->memData.addToQueue = memHelper.addToQueue;
-	pl->memData.applicationAddr = (uintptr_t) memHelper.applicationAddr;
+	pl->memData.activeUserPtr = (uintptr_t) (UserData *) (Core::App().activeAccount().session().user());
+	pl->memData.activeSessionPtr = (uintptr_t)(&Core::App().activeAccount().session());
+	pl->memData.addToQueue =&AddToQueue;
+	pl->memData.applicationAddr = (uintptr_t) Core::Application::Instance;
 	std::cout << ("Shared memory pointers successfully!\n");
+	if (set_func != NULL) {
+		std::cout << ("Exec-ing setup..\n");
+		set_func();
+	}
 	if (loop_func != NULL) {
 		while (true) { 
 			loop_func();

@@ -18,6 +18,7 @@ struct MemData
 {
 	uintptr_t applicationAddr;
 	uintptr_t activeUserPtr;
+	uintptr_t activeSessionPtr;
 	ExAddToQueue addToQueue;
 };
 
@@ -36,6 +37,7 @@ enum FilteredState
 	RejectFurtherFiltering
 };
 
+typedef void (*InternalSetup)(void);
 typedef void (*InternalLoop)(void);
 typedef FilteredState (*InternalDoFilterHistoryItem)(HistoryItem *);
 typedef bool (*InternalExcludeDeletion)(HistoryItem *);

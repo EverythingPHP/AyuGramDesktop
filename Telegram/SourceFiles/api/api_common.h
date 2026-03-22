@@ -49,7 +49,7 @@ enum class SendType {
 };
 
 struct SendAction {
-	explicit SendAction(
+	__declspec(dllexport) explicit SendAction(
 		not_null<Data::Thread*> thread,
 		SendOptions options = SendOptions());
 

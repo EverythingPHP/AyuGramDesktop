@@ -147,8 +147,8 @@ public:
 	void run();
 
 	// Domain component.
-	[[nodiscard]] Main::Domain &domain() const { return *_domain; }
-	[[nodiscard]] Main::Account &activeAccount() const;
+	__declspec(dllexport) [[nodiscard]] Main::Domain &domain() const { return *_domain; }
+	__declspec(dllexport) [[nodiscard]] Main::Account &activeAccount() const;
 	[[nodiscard]] Platform::Integration &platformIntegration() const {
 		return *_platformIntegration;
 	}
@@ -171,7 +171,7 @@ public:
 	}
 
 	// Windows interface.
-	bool hasActiveWindow(not_null<Main::Session*> session) const;
+	__declspec(dllexport) bool hasActiveWindow(not_null<Main::Session *> session) const;
 	[[nodiscard]] bool savingPositionFor(
 		not_null<Window::Controller*> window) const;
 	[[nodiscard]] Window::Controller *findWindow(
