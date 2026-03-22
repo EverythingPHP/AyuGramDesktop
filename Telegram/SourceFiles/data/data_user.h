@@ -98,6 +98,7 @@ struct BotInfo {
 	bool canManageEmojiStatus : 1 = false;
 	bool supportsBusiness : 1 = false;
 	bool hasMainApp : 1 = false;
+	bool userCreatesTopics : 1 = false;
 
 private:
 	std::unique_ptr<Data::Forum> _forum;
@@ -134,6 +135,8 @@ enum class UserDataFlag : uint32 {
 	StoriesCorrespondent = (1 << 26),
 	Forum = (1 << 27),
 	HasActiveVideoStream = (1 << 28),
+	NoForwardsMyEnabled = (1 << 29),
+	NoForwardsPeerEnabled = (1 << 30),
 };
 inline constexpr bool is_flag_type(UserDataFlag) { return true; };
 using UserDataFlags = base::flags<UserDataFlag>;
@@ -200,6 +203,8 @@ public:
 	__declspec(dllexport) [[nodiscard]] bool messageMoneyRestrictionsKnown() const;
 	__declspec(dllexport) [[nodiscard]] bool canSendIgnoreMoneyRestrictions() const;
 	__declspec(dllexport) [[nodiscard]] bool readDatesPrivate() const;
+	__declspec(dllexport) [[nodiscard]] bool allowsForwarding() const;
+	__declspec(dllexport) void setNoForwardsFlags(bool myEnabled, bool peerEnabled);
 	[[nodiscard]] bool isForum() const {
 		return flags() & Flag::Forum;
 	}

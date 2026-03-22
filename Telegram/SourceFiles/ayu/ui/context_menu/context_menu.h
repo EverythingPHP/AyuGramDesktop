@@ -3,7 +3,7 @@
 // We do not and cannot prevent the use of our code,
 // but be respectful and credit the original author.
 //
-// Copyright @Radolyn, 2025
+// Copyright @Radolyn, 2026
 #pragma once
 
 #include "data/data_document.h"
@@ -11,9 +11,11 @@
 #include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
 
+#include "ayu/ayu_settings.h"
+
 namespace AyuUi {
 
-bool needToShowItem(int state);
+bool needToShowItem(ContextMenuVisibility state);
 
 void AddDeletedMessagesActions(PeerData *peerData,
 							   Data::Thread *thread,

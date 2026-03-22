@@ -3,7 +3,7 @@
 // We do not and cannot prevent the use of our code,
 // but be respectful and credit the original author.
 //
-// Copyright @Radolyn, 2025
+// Copyright @Radolyn, 2026
 #include "ayu/ui/context_menu/context_menu.h"
 
 #include "apiwrap.h"
@@ -12,27 +12,16 @@
 #include "ayu/ayu_settings.h"
 #include "ayu/ayu_state.h"
 #include "ayu/data/messages_storage.h"
-#include "ayu/features/filters/shadow_ban_utils.h"
 #include "ayu/features/forward/ayu_forward.h"
 #include "ayu/ui/context_menu/menu_item_subtext.h"
-#include "ayu/utils/qt_key_modifiers_extended.h"
-#include "history/history_item_components.h"
-#include "main/session/send_as_peers.h"
-
-#include "core/mime_type.h"
-#include "styles/style_ayu_icons.h"
-#include "styles/style_layers.h"
-#include "styles/style_menu_icons.h"
-#include "ui/widgets/popup_menu.h"
-#include "ui/widgets/menu/menu_add_action_callback_factory.h"
-#include "window/window_peer_menu.h"
-
 #include "ayu/ui/message_history/history_section.h"
 #include "ayu/ui/settings/filters/edit_filter.h"
+#include "ayu/utils/qt_key_modifiers_extended.h"
 #include "ayu/utils/telegram_helpers.h"
 #include "base/call_delayed.h"
 #include "base/random.h"
 #include "base/unixtime.h"
+#include "core/mime_type.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
 #include "data/data_forum_topic.h"
@@ -40,10 +29,18 @@
 #include "data/data_search_controller.h"
 #include "data/data_session.h"
 #include "data/data_user.h"
+#include "history/history_item_components.h"
 #include "history/view/history_view_context_menu.h"
 #include "history/view/history_view_element.h"
+#include "main/session/send_as_peers.h"
+#include "styles/style_ayu_icons.h"
+#include "styles/style_layers.h"
+#include "styles/style_menu_icons.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/widgets/popup_menu.h"
+#include "ui/widgets/menu/menu_add_action_callback_factory.h"
 #include "window/window_controller.h"
+#include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
 
 namespace AyuUi {
@@ -186,8 +183,9 @@ Fn<void()> DeleteMyMessagesHandler(not_null<Window::SessionController*> controll
 
 }
 
-bool needToShowItem(int state) {
-	return state == 1 || (state == 2 && base::IsExtendedContextMenuModifierPressed());
+bool needToShowItem(ContextMenuVisibility state) {
+	return state == ContextMenuVisibility::Visible
+		|| (state == ContextMenuVisibility::VisibleWithModifier && base::IsExtendedContextMenuModifierPressed());
 }
 
 void AddDeletedMessagesActions(PeerData *peerData,
@@ -298,7 +296,7 @@ void AddJumpToBeginningAction(PeerData *peerData,
 				}
 			}
 		},
-		&st::ayuMenuIconToBeginning);
+		&st::ayuToBeginningMenuIcon);
 }
 
 void AddOpenChannelAction(PeerData *peerData,
@@ -325,7 +323,7 @@ void AddOpenChannelAction(PeerData *peerData,
 void AddShadowBanAction(PeerData *peerData,
 						const Window::PeerMenuCallback &addCallback) {
 	const auto &settings = AyuSettings::getInstance();
-	if (!peerData || !peerData->isUser() || !peerData->isChannel() || !settings.filtersEnabled) {
+	if (!peerData || !(peerData->isUser() || peerData->isBroadcast()) || !settings.filtersEnabled()) {
 		return;
 	}
 
@@ -336,13 +334,13 @@ void AddShadowBanAction(PeerData *peerData,
 	}
 
 	const auto realId = getDialogIdFromPeer(peerData);
-	const auto shadowBanned = ShadowBanUtils::isShadowBanned(realId);
+	const auto shadowBanned = AyuSettings::getInstance().isShadowBanned(realId);
 	const auto toggleShadowBan = [=]
 	{
 		if (shadowBanned) {
-			ShadowBanUtils::removeShadowBan(realId);
+			AyuSettings::getInstance().removeShadowBan(realId);
 		} else {
-			ShadowBanUtils::addShadowBan(realId);
+			AyuSettings::getInstance().addShadowBan(realId);
 		}
 	};
 
@@ -411,7 +409,7 @@ void AddHistoryAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 
 void AddHideMessageAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 	const auto &settings = AyuSettings::getInstance();
-	if (!needToShowItem(settings.showHideMessageInContextMenu)) {
+	if (!needToShowItem(settings.showHideMessageInContextMenu())) {
 		return;
 	}
 
@@ -439,7 +437,7 @@ void AddHideMessageAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 
 void AddUserMessagesAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 	const auto &settings = AyuSettings::getInstance();
-	if (!needToShowItem(settings.showUserMessagesInContextMenu)) {
+	if (!needToShowItem(settings.showUserMessagesInContextMenu())) {
 		return;
 	}
 
@@ -464,7 +462,7 @@ void AddUserMessagesAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 
 void AddMessageDetailsAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 	const auto &settings = AyuSettings::getInstance();
-	if (!needToShowItem(settings.showMessageDetailsInContextMenu)) {
+	if (!needToShowItem(settings.showMessageDetailsInContextMenu())) {
 		return;
 	}
 
@@ -675,7 +673,7 @@ void AddMessageDetailsAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 
 void AddRepeatMessageAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 	const auto &settings = AyuSettings::getInstance();
-	if (!needToShowItem(settings.showRepeatMessageInContextMenu)) {
+	if (!needToShowItem(settings.showRepeatMessageInContextMenu())) {
 		return;
 	}
 
@@ -703,6 +701,8 @@ void AddRepeatMessageAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 			if (peer->isUser() || peer->isChat() || item->history()->peer->isMonoforum()) {
 				sendOptions.sendAs = nullptr;
 			}
+
+			applyGhostScheduling(session, sendOptions);
 
 			auto action = Api::SendAction(history, sendOptions);
 			action.clearDraft = false;
@@ -735,30 +735,25 @@ void AddRepeatMessageAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 				session->api().forwardMessages(std::move(resolvedDraft), action, [] {});
 			}
 		},
-		&st::menuIconRestore);
+		&st::ayuRepeatMenuIcon);
 }
 
 void AddReadUntilAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
-	if (item->isLocal() || item->isService() || item->out() || item->isDeleted()) {
+	if (item->isLocal() || item->out() || item->isDeleted() || item->history()->peer->isSelf()) {
 		return;
 	}
 
-	if (item->history()->peer->isSelf()) {
-		return;
-	}
-
-	const auto &settings = AyuSettings::getInstance();
-	if (settings.sendReadMessages) {
+	const auto &ghost = AyuSettings::ghost(&item->history()->session());
+	if (ghost.sendReadMessages()) {
 		return;
 	}
 
 	menu->addAction(
 		tr::ayu_ReadUntilMenuText(tr::now),
-		[=]()
+		[=]
 		{
 			readHistory(item);
-			if (item->media() && item->media()->ttlSeconds() <= 0 && item->unsupportedTTL() <= 0 && !item->out() && item
-				->isUnreadMedia()) {
+			if (item->media() && item->media()->ttlSeconds() <= 0 && item->unsupportedTTL() <= 0 && !item->out()) {
 				const auto ids = MTP_vector<MTPint>(1, MTP_int(item->id));
 				if (const auto channel = item->history()->peer->asChannel()) {
 					item->history()->session().api().request(MTPchannels_ReadMessageContents(
@@ -783,44 +778,25 @@ void AddReadUntilAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 
 void AddBurnAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 	if (!item->media() || (item->media()->ttlSeconds() <= 0 && item->unsupportedTTL() <= 0) || item->out() ||
-		!item->isUnreadMedia()) {
+		!item->hasUnreadMediaFlag()) {
 		return;
 	}
 
 	menu->addAction(
 		tr::ayu_ExpireMediaContextMenuText(tr::now),
-		[=]()
+		[=]
 		{
 			const auto ids = MTP_vector<MTPint>(1, MTP_int(item->id));
-			const auto callback = [=]()
-			{
-				if (const auto window = Core::App().activeWindow()) {
-					if (const auto controller = window->sessionController()) {
-						controller->showToast(tr::lng_box_ok(tr::now));
-					}
-				}
-			};
 
-			if (const auto channel = item->history()->peer->asChannel()) {
-				item->history()->session().api().request(MTPchannels_ReadMessageContents(
-					channel->inputChannel(),
-					ids
-				)).done([=]()
-				{
-					callback();
-				}).send();
-			} else {
-				item->history()->session().api().request(MTPmessages_ReadMessageContents(
+			item->history()->session().api().request(MTPmessages_ReadMessageContents(
 					ids
 				)).done([=](const MTPmessages_AffectedMessages &result)
 				{
 					item->history()->session().api().applyAffectedMessages(
 						item->history()->peer,
 						result);
-					callback();
+					item->markContentsRead();
 				}).send();
-			}
-			item->markContentsRead();
 		},
 		&st::menuIconTTLAny);
 }
@@ -830,7 +806,7 @@ void AddCreateFilterAction(not_null<Ui::PopupMenu*> menu,
 						   HistoryItem *item,
 						   const QString &selectedText) {
 	const auto &settings = AyuSettings::getInstance();
-	if (!needToShowItem(settings.showAddFilterInContextMenu) || !settings.filtersEnabled) {
+	if (!needToShowItem(settings.showAddFilterInContextMenu()) || !settings.filtersEnabled()) {
 		return;
 	}
 
