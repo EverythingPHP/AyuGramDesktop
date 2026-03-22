@@ -2967,9 +2967,6 @@ void History::applyChatListGroup(
 	});
 }
 
-HistoryItem *History::lastMessage() const {
-	return _lastMessage.value_or(nullptr);
-}
 
 bool History::lastMessageKnown() const {
 	return _lastMessage.has_value();
