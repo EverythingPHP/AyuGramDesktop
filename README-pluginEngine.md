@@ -4,6 +4,7 @@ This is a documentation for AyuGram Plugin engine.<br>
 We expect that you're familiar with Building Ayugram Desktop, or with C/C++ in general. <br>
 A sample plugin can be found here - https://github.com/MrCheatEugene/AyuSamplePlugin<br>
 You need to change the project file to have Ayugram source folders defined accordingly. <br>
+For proper development of the plugins, you also need to build this version of Ayugram locally.<br>
 
 ## How it works?
 It works really simple. 
@@ -32,8 +33,16 @@ AyuPlugin struct defines like that, usually: <br>
 ```cpp 
 struct MemData
 {
-	uintptr_t applicationAddr; // an address of Core::App()
+	uintptr_t applicationAddr; 
 	uintptr_t activeUserPtr; // a pointer of a current User - Core::App().activeAccount().session().user()
+};
+
+struct MemData
+{
+	uintptr_t applicationAddr; // a pointer to Core::App()
+	uintptr_t activeUserPtr; // a pointer of a current User - Core::App().activeAccount().session().user()
+	uintptr_t activeSessionPtr; // a pointer of a current Session - Core::App().activeAccount().session()
+	ExAddToQueue addToQueue; // a pointer to addToQueue function
 };
 
 struct AyuPlugin
@@ -51,15 +60,113 @@ When a plugin loads, AyuGram process gets that structure and:
 - shows the user whatever plugin is loaded (by name)
 - if it fails, it shows them the error code
 
+## API information, declarations of functions
+
 ### DLLMain
 DLLMain should return True if the plugin wants to load. It can be set to false, if you want to restrict load, for example.
 
+### Main Loop and Thread-safe operations
+Remember: plugins always work in a separate thread, and have VERY LITTLE ACCESS to AyuGram's memory.<br>
+This is why, for example, when you work with ApiWrap, you should always wrap that into a void function, and pass it onto the Main Queue.<br>
+Function will be passed onto the main thread, by dispatching it inside an instant-firing QTimer [(see dispatchToMainThread definition)](/Telegram/SourceFiles/ayu/utils/telegram_helpers.cpp#L85).<br>
+
+For you, it's as simple as:
+```cpp
+// app, session definitions..
+
+auto x = [app, session] {
+	// your unsafe operation is now safe here!
+};
+_pluginInfo.memData.addToQueue(x);
+```
+While you **can ignore main queue**, and think it's useless, remember: your operations **may and will fail unexpectedly**, if you run it "as is" in your own thread.<br>
+Following operations are usually more stable in main thread:
+- API calls
+- Reading, and calling functions within any deep-level structures, like Sessions
+- ANYTHING that involves updating the UI, in the function chain (e.g sending a message via the API, causes HistoryItem list to be updated, which in the end involves animations, which are not thread-safe)
+
+### Debugging tips
+1. Enable `/DEBUG` when building the Plugin, and Load Debug Symbols if the autoload doesn't pick it up - [guide](https://learn.microsoft.com/en-us/visualstudio/debugger/how-to-use-the-modules-window?view=visualstudio)
+2. Check call stacks, and calls between the threads. You can find a lot of useful details there.
+3. Null pointers are the most frequent issue you'll be facing, so when you see "access violation", and you have a bunch of one-liner code that's causing it, split it into variables and inspect it in debugger then.
+
+### Direct API (ApiWrap, limited) calls
+You can call some ApiWrap functions. Not all of them are exported, due to them making the application unstable, see `Explaining why we can't use ApiWrap -> request` below for more details.<br>
+See [apiwrap.h](/Telegram/SourceFiles/apiwrap.h), and look for `__declspec(dllexport)` declarared-functions. Those can technically be used, via ApiWrap.<br>
+Not all of them were tested: if Linking fails, due to it requiring a class that's not exported, you can submit an Issue, or try exporting the class or needed methods yourself with the same `__declspec(dllexport` declaration.<br>
+ApiWrap calls are not recommended, though, as they may require more exported classes/wrappers on linkage. Stick to MTProto calls when possible.<br>
+Example of an ApiWrap API call:
+```
+PeerId peerID = s->userPeerId(); // a shortcut to saved messages (chat with your active account); you can get chat or channel, like: peerFromChannel(ChannelId(3871594897ULL)); 
+History* history = s->data().history(peerID); // Get the history 
+if (!history) { 
+	MessageBoxA(nullptr, "Couldn't load history.", "Debug", MB_OK ); 
+	return;
+}
+auto message = Api::MessageToSend(Api::SendAction(history)); // Construct a simple message, ...
+message.textWithTags = { "Hi from Plugin Engine! ✨", {} };  // ..then fill it up with actual content! textWithTags is a Struct, by the way, so we can do it in one line, yay!
+s->api().sendMessage(std::move(message)); // then we call the Active Session API, and send the message! (yeah it needs std::move)
+```
+
+### Direct API (MTProto) calls
+You can make different MTProto calls via: `s->api().instancePtr()->sendReq(request, callback)`<br>
+
+Request should not be Serialized: but wrapped in `tl::boxed`, like:<br>
+```cpp
+using MTPaccountupdateProfile = tl::boxed<MTPaccount_updateProfile>;
+// using YourLocalName = tl::boxed<MTPrequestNameThatsNotWrapped>;
+
+// ...
+s->api().instancePtr()->sendReq(MTPaccountupdateProfile(...));
+```
+
+Some requests don't have to be wrapped in tl::boxed, **as they already are**. Check scheme.cpp, scheme.h for that reason (those are auto-generated by CMake).
+
+Example of `tl::boxed` request:
+```cpp
+using MTPaccountupdateProfile = tl::boxed<MTPaccount_updateProfile>; // boxed is required here, because sendReq doesn't understand unboxed requests
+auto r = MTPaccountupdateProfile(
+    MTP_flags(MTPaccountupdateProfile::Flag::f_about),
+    MTP_string(),
+    MTP_string(),
+    MTP_string("Updated bio via @ayuplugg ✨")
+);
+s->api().instancePtr()->sendReq(
+    r
+);
+```
+
+Example of an already `tl::boxed` request:
+```cpp
+auto r = MTPaccount_SaveMusic( // scheme.h has "using MTPaccount_SaveMusic = tl::boxed<MTPaccount_saveMusic>;", making it already boxed.
+    MTP_flags(0),
+    mI,
+    MTPInputDocument()
+); // form the request
+
+i->sendReq(r);
+```
+
+#### Explaining why we can't use ApiWrap -> request
+Telegram wraps every MTProto call in ApiWrap. ApiWrap is a parent of MTP::Sender. <br>
+It pushes the request into the queue, where it processes them from now on.<br>
+Issue is, we can't just export MTP::Sender in .lib file (which's needed for the plugin to link properly), because other functions will attempt to copy RequestWrap, instead of moving it.<br>
+To use a certain Class or type in External DLL, it has to be exported for linking. Exporting ApiWrap, makes RequestWrap exportable, too, which leads to a lot of dumb issues I'm too lazy of solving.
+
+Instead, we use sendReq: it's similar to [MTP::Instance::send](/Telegram/SourceFiles/mtproto/mtp_instance.h), instead, it does all the job at once, instead of having multiple overloads, calling sendRequest in 10 steps, it does the exact same as ::send. Yet it's exported properly, and Linker on the plugin is happy with it.
+
+### Setup Call
+You can define a setup function.<br>
+`EXTERN_DLL_EXPORT void internalSetup() {`<br>
+It'll be ran once by the engine, with all of the memory pointers loaded in. Loop will not start, til the function ends.
+
+
 ### Internal Loop
 You can define a loop. <br>
-`EXTERN_DLL_EXPORT InternalLoop internalLoop() {` <br>
+`EXTERN_DLL_EXPORT void internalLoop() {` <br>
 That's it. It's a loop. It'll run in an another loop function in the thread, so you don't have to do: 
 ```cpp
-EXTERN_DLL_EXPORT InternalLoop internalLoop() {
+EXTERN_DLL_EXPORT void internalLoop() {
   while (1) {
     // do stuff
   }
@@ -78,8 +185,31 @@ There's nothing much to say about it.
 
 ### Shared Filters hook
 Must be defined as: `EXTERN_DLL_EXPORT InternalDoFilterHistoryItem doFilterHistoryItem(HistoryItem* HistoryItem)`<br>
-Basically, think of it as a `bool doFilterHistoryItem(HistoryItem* historyItem)`, as it always returns a BOOL. <br>
+Remember the struct: 
+```cpp
+enum FilteredState
+{
+	NoMatch,
+	Filtered,
+	RejectFurtherFiltering
+};
+```
+Hook should return:
+- NoMatch if it didn't match anything (filtering function continues to run)
+- Filtered if it matches/Item should be filtered (filtered function stops at that place)
+- RejectFurtherFiltering if Item shouldn't be filtered, and the function should return that the item is NOT filtered (filtered function returns false)
+
 If it RETURNS TRUE, the [filtered function](/Telegram/SourceFiles/ayu/features/filters/filters_controller.cpp#L125C1-L125C51) will filter the matched historyItem. 
+
+### ExcludeDeletion Hook
+Must be defined as: `EXTERN_DLL_EXPORT InternalExcludeDeletion doExcludeDeleted(HistoryItem* i) {`<br>
+If it returns TRUE, messages that are Deleted will NOT be captured and stored in the database by AyuGram. <br>
+Example: 
+```cpp
+EXTERN_DLL_EXPORT InternalExcludeDeletion doExcludeDeleted(HistoryItem* i) {
+	return (InternalExcludeDeletion)i->from()->username().contains("pmrgt"); // exclude deletion of messages from accounts with "pmrgt" in their username, just as a demo
+}
+```
 
 ### "Online" status hook
 If at least one loaded plugin, returns `true`, Ayugram will send an MTProto request for the current user: <br>
