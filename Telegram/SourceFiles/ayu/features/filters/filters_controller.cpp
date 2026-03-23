@@ -19,10 +19,6 @@
 #include "history/history_item.h"
 #include "history/history_item_components.h"
 #include "unicode/regex.h"
-
-#include "filters_utils.h"
-#include "shadow_ban_utils.h"
-#include "ayu/utils/telegram_helpers.h"
 #include <FunctionsOnFilter.h>
 
 namespace FiltersController {

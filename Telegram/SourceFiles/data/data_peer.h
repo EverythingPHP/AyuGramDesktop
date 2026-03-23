@@ -318,6 +318,8 @@ public:
 	__declspec(dllexport) [[nodiscard]] rpl::producer<bool> slowmodeAppliedValue() const;
 	__declspec(dllexport) [[nodiscard]] int slowmodeSecondsLeft() const;
 	__declspec(dllexport) [[nodiscard]] bool canManageGroupCall() const;
+	__declspec(dllexport) [[nodiscard]] bool canManageRanks() const;
+
 	__declspec(dllexport) [[nodiscard]] bool amMonoforumAdmin() const;
 
 	__declspec(dllexport) [[nodiscard]] int starsPerMessage() const;
