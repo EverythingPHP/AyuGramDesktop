@@ -94,7 +94,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/ayu_worker.h"
 #include "ayu/utils/telegram_helpers.h"
 #include "ayu/features/forward/ayu_forward.h"
-#include "FunctionsOnFilter.h"
+#include "ExternSharedVariables.h"
 
 
 namespace {

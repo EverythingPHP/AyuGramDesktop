@@ -79,7 +79,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/utils/telegram_helpers.h"
 #include "ui/emoji_config.h"
 
-#include "FunctionsOnFilter.h"
+#include "ExternSharedVariables.h"
 
 
 namespace {

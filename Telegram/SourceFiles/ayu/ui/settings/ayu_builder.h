@@ -13,7 +13,7 @@
 
 namespace Settings::AyBuilder {
 
-class AyuSectionBuilder {
+__declspec(dllexport) class AyuSectionBuilder {
 public:
 	explicit AyuSectionBuilder(Builder::SectionBuilder &builder);
 

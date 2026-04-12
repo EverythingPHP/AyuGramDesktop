@@ -19,7 +19,7 @@
 #include "history/history_item.h"
 #include "history/history_item_components.h"
 #include "unicode/regex.h"
-#include <FunctionsOnFilter.h>
+#include <ExternSharedVariables.h>
 
 namespace FiltersController {
 

@@ -1,5 +1,8 @@
 #pragma once
 #include <history\history.h>
+#include <ayu/ui/settings/ayu_builder.h>
+#include <settings/settings_builder.h>
+#include <plengine/settings/settings_plugins.h>
 
 #ifdef AYUPLUGIN
 #define EXTERN_DLL_EXPORT extern "C" __declspec(dllexport)
@@ -42,5 +45,6 @@ typedef void (*InternalLoop)(void);
 typedef FilteredState (*InternalDoFilterHistoryItem)(HistoryItem *);
 typedef bool (*InternalExcludeDeletion)(HistoryItem *);
 typedef void (*InternalDoPreProcessMessage)(char *in, char *out);
+typedef void (*InternalDrawGUI)(Settings::Builder::SectionBuilder& builder, Settings::AyBuilder::AyuSectionBuilder& ayu, Settings::PLEPlugins* ple);
 typedef bool (*InternalIsOnline)(void);
 typedef AyuPlugin *(*InternalPluginInfo)();
