@@ -31,7 +31,7 @@ class PLESettings
 		}
 
 		static bool isEnvSet(std::string name) {
-			return getenv(name.c_str()) != nullptr && std::string(getenv(name.c_str())) != "";
+			return getenv(name.c_str()) != nullptr && std::string(getenv(name.c_str())) != "" && std::string(getenv(name.c_str())) != "0";
 		}
 
 		inline bool consoleEnabled() {
@@ -68,10 +68,10 @@ class PLESettings
 				// this is a shady workaround for what we're doing, but i'm slim shady, all you other slim shadys are just imitating
 				if (value == "") {
 					system(("setx " + name + " 0").c_str()); // apply rn
-					system(("REG DELETE \"HKCU\\Environment\" /V " + name + " /F").c_str());
+					system(("REG DELETE \"HKCU\\Environment\" /V \"" + name + "\" /F").c_str());
 					return;
 				}
-				system(("setx " + name + " " + value).c_str()); // apply rn
+				system(("setx \"" + name + "\"	" + value).c_str()); // apply rn
 				std::cout << "Saved setting " << name << " with value " << value << std::endl;
 			});
 			t.detach();

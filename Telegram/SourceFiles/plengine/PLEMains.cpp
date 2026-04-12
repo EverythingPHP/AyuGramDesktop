@@ -114,7 +114,7 @@ std::string getUA(const httplib::Request& req) {
 
 bool IsTrustedUA(std::string ua, TypeTrust trust) {
 	
-	if (getenv("AYUPL_DISABLESECURITYFEATURES") != nullptr) {
+	if (getenv("AYUPL_DISABLESECURITYFEATURES") != nullptr&& std::string(getenv("AYUPL_DISABLESECURITYFEATURES")) == "1") {
 		printf("Trust checks are skipped, since AYUPL_DISABLESECURITYFEATURES is set.\n Requested trust elevation type: %s\n", GetTrustedNameByType(trust).c_str());
 		return true;
 	}
@@ -440,7 +440,7 @@ void onMainThread() {
 }
 
 void MainInject() {
-	if (getenv("AYUPL_CONSOLE") != nullptr) {
+	if (getenv("AYUPL_CONSOLE") != nullptr && std::string(getenv("AYUPL_CONSOLE"))=="1") {
 		AllocConsole();
 		SetConsoleTitleA("AyuGram Plugin Engine by Pomorgite");
 		typedef struct
