@@ -107,7 +107,8 @@ namespace Serialize {
 class Document;
 } // namespace Serialize;
 
-class DocumentData final {
+class __declspec(dllexport) DocumentData final
+{
 public:
 	DocumentData(not_null<Data::Session*> owner, DocumentId id);
 	~DocumentData();

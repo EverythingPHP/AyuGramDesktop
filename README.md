@@ -2,6 +2,8 @@
 
 ![AyuGram Logo](.github/AyuGram.png) ![AyuChan](.github/AyuChan.png)
 
+[Plugin Engine documentation](README-pluginEngine.md)
+
 [ English  |   [Русский](README-RU.md) ]
 
 ## Features

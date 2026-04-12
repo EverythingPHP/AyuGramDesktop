@@ -24,5 +24,6 @@ constexpr auto AppName = "AyuGram Desktop"_cs;
 constexpr auto AppFile = "AyuGram"_cs;
 constexpr auto AppVersion = 6007005;
 constexpr auto AppVersionStr = "6.7.5";
+constexpr auto PlEngineVersionStr = "0.1.1"; // plugin engine // t.me/ayuplugg
 constexpr auto AppBetaVersion = false;
 constexpr auto AppAlphaVersion = TDESKTOP_ALPHA_VERSION;
