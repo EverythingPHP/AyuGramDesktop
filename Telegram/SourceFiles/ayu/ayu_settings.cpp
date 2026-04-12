@@ -16,8 +16,8 @@
 #include "features/translator/ayu_translator.h"
 #include "main/main_domain.h"
 #include "main/main_session.h"
+#include "platform/platform_translate_provider.h"
 #include "rpl/combine.h"
-#include "ui/ayu_userpic.h"
 #include "window/window_controller.h"
 
 #include <fstream>
@@ -220,6 +220,12 @@ void MessageShotSettings::setShowColorfulReplies(bool val) {
 	AyuSettings::save();
 }
 
+void MessageShotSettings::setRevealSpoilers(bool val) {
+	if (_revealSpoilers.current() == val) return;
+	_revealSpoilers = val;
+	AyuSettings::save();
+}
+
 bool MessageShotSettings::isCloudThemeEmpty() const {
 	return !_cloudThemeId.current()
 		&& !_cloudThemeAccessHash.current()
@@ -285,6 +291,7 @@ void to_json(nlohmann::json &j, const MessageShotSettings &s) {
 		{"showDate", s._showDate.current()},
 		{"showReactions", s._showReactions.current()},
 		{"showColorfulReplies", s._showColorfulReplies.current()},
+		{"revealSpoilers", s._revealSpoilers.current()},
 		{"embeddedThemeType", s._embeddedThemeType.current()},
 		{"embeddedThemeAccentColor", s._embeddedThemeAccentColor.current()},
 		{"cloudThemeId", s._cloudThemeId.current()},
@@ -299,7 +306,8 @@ void from_json(const nlohmann::json &j, MessageShotSettings &s) {
 	s._showBackground = j.value("showBackground", true);
 	s._showDate = j.value("showDate", false);
 	s._showReactions = j.value("showReactions", false);
-	s._showColorfulReplies = j.value("showColorfulReplies", false);
+	s._showColorfulReplies = j.value("showColorfulReplies", true);
+	s._revealSpoilers = j.value("revealSpoilers", true);
 	s._embeddedThemeType = j.value("embeddedThemeType", j.value("themeType", -1));
 	s._embeddedThemeAccentColor = j.value("embeddedThemeAccentColor", j.value("themeAccentColor", uint32(0)));
 	s._cloudThemeId = j.value("cloudThemeId", uint64(0));
@@ -445,9 +453,9 @@ void AyuSettings::validate() {
 		}
 	};
 
-	auto validateEnum = [&](auto &var, const auto &defaultVar) {
+	auto validateEnum = [&](auto &var, const auto &defaultVar, int max = 2) {
 		auto intVal = static_cast<int>(var.current());
-		if (intVal < 0 || intVal > 2) {
+		if (intVal < 0 || intVal > max) {
 			var = defaultVar.current();
 			modified = true;
 		}
@@ -463,8 +471,14 @@ void AyuSettings::validate() {
 	validateEnum(_showRepeatMessageInContextMenu, defaults._showRepeatMessageInContextMenu);
 	validateEnum(_showAddFilterInContextMenu, defaults._showAddFilterInContextMenu);
 
-	validateEnum(_translationProvider, defaults._translationProvider);
+	validateEnum(_translationProvider, defaults._translationProvider, 3);
+	if ((_translationProvider.current() == TranslationProvider::Native)
+		&& !Platform::IsTranslateProviderAvailable()) {
+		_translationProvider = defaults._translationProvider.current();
+		modified = true;
+	}
 
+	validateRange(_messageBubbleRadius, 0, 16, defaults._messageBubbleRadius);
 	validateRange(_wideMultiplier, 0.5, 4.0, defaults._wideMultiplier);
 	validateRange(_recentStickersCount, 1, 200, defaults._recentStickersCount);
 	validateRange(_avatarCorners, 0, AyuUiSettings::kMaxAvatarCorners, defaults._avatarCorners);
@@ -542,6 +556,12 @@ void AyuSettings::setDisableCustomBackgrounds(bool val) {
 	save();
 }
 
+void AyuSettings::setHidePremiumStatuses(bool val) {
+	if (_hidePremiumStatuses.current() == val) return;
+	_hidePremiumStatuses = val;
+	save();
+}
+
 void AyuSettings::setShowOnlyAddedEmojisAndStickers(bool val) {
 	if (_showOnlyAddedEmojisAndStickers.current() == val) return;
 	_showOnlyAddedEmojisAndStickers = val;
@@ -560,6 +580,12 @@ void AyuSettings::setHideSimilarChannels(bool val) {
 	save();
 }
 
+void AyuSettings::setMessageBubbleRadius(int val) {
+	if (_messageBubbleRadius.current() == val) return;
+	_messageBubbleRadius = val;
+	save();
+}
+
 void AyuSettings::setWideMultiplier(double val) {
 	if (_wideMultiplier.current() == val) return;
 	_wideMultiplier = val;
@@ -572,6 +598,12 @@ void AyuSettings::setWideMultiplier(double val) {
 void AyuSettings::setSpoofWebviewAsAndroid(bool val) {
 	if (_spoofWebviewAsAndroid.current() == val) return;
 	_spoofWebviewAsAndroid = val;
+	save();
+}
+
+void AyuSettings::setDisableOpenLinkWarning(bool val) {
+	if (_disableOpenLinkWarning.current() == val) return;
+	_disableOpenLinkWarning = val;
 	save();
 }
 
@@ -742,6 +774,18 @@ void AyuSettings::setShowMicrophoneButtonInMessageField(bool val) {
 void AyuSettings::setShowAutoDeleteButtonInMessageField(bool val) {
 	if (_showAutoDeleteButtonInMessageField.current() == val) return;
 	_showAutoDeleteButtonInMessageField = val;
+	save();
+}
+
+void AyuSettings::setShowGiftButtonInMessageField(bool val) {
+	if (_showGiftButtonInMessageField.current() == val) return;
+	_showGiftButtonInMessageField = val;
+	save();
+}
+
+void AyuSettings::setShowAiEditorButtonInMessageField(bool val) {
+	if (_showAiEditorButtonInMessageField.current() == val) return;
+	_showAiEditorButtonInMessageField = val;
 	save();
 }
 
@@ -926,9 +970,15 @@ void AyuSettings::setVoiceConfirmation(bool val) {
 }
 
 void AyuSettings::setTranslationProvider(TranslationProvider val) {
+	if ((val == TranslationProvider::Native)
+		&& !Platform::IsTranslateProviderAvailable()) {
+		val = TranslationProvider::Telegram;
+	}
 	if (_translationProvider.current() == val) return;
 	_translationProvider = val;
-	Ayu::Translator::TranslateManager::currentInstance()->resetCache();
+	if (const auto manager = Ayu::Translator::TranslateManager::currentInstance()) {
+		manager->resetCache();
+	}
 	save();
 }
 
@@ -987,6 +1037,8 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 		{"showOnlyAddedEmojisAndStickers", s._showOnlyAddedEmojisAndStickers.current()},
 		{"collapseSimilarChannels", s._collapseSimilarChannels.current()},
 		{"hideSimilarChannels", s._hideSimilarChannels.current()},
+		{"messageBubbleRadius", s._messageBubbleRadius.current()},
+		{"disableOpenLinkWarning", s._disableOpenLinkWarning.current()},
 		{"wideMultiplier", s._wideMultiplier.current()},
 		{"spoofWebviewAsAndroid", s._spoofWebviewAsAndroid.current()},
 		{"increaseWebviewHeight", s._increaseWebviewHeight.current()},
@@ -1017,6 +1069,8 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 		{"showEmojiButtonInMessageField", s._showEmojiButtonInMessageField.current()},
 		{"showMicrophoneButtonInMessageField", s._showMicrophoneButtonInMessageField.current()},
 		{"showAutoDeleteButtonInMessageField", s._showAutoDeleteButtonInMessageField.current()},
+		{"showGiftButtonInMessageField", s._showGiftButtonInMessageField.current()},
+		{"showAiEditorButtonInMessageField", s._showAiEditorButtonInMessageField.current()},
 		{"showAttachPopup", s._showAttachPopup.current()},
 		{"showEmojiPopup", s._showEmojiPopup.current()},
 		{"showMyProfileInDrawer", s._showMyProfileInDrawer.current()},
@@ -1083,6 +1137,8 @@ void from_json(const nlohmann::json &j, AyuSettings &s) {
 	s._showOnlyAddedEmojisAndStickers = j.value("showOnlyAddedEmojisAndStickers", defaults._showOnlyAddedEmojisAndStickers.current());
 	s._collapseSimilarChannels = j.value("collapseSimilarChannels", defaults._collapseSimilarChannels.current());
 	s._hideSimilarChannels = j.value("hideSimilarChannels", defaults._hideSimilarChannels.current());
+	s._messageBubbleRadius = j.value("messageBubbleRadius", defaults._messageBubbleRadius.current());
+	s._disableOpenLinkWarning = j.value("disableOpenLinkWarning", defaults._disableOpenLinkWarning.current());
 	s._wideMultiplier = j.value("wideMultiplier", defaults._wideMultiplier.current());
 	s._spoofWebviewAsAndroid = j.value("spoofWebviewAsAndroid", defaults._spoofWebviewAsAndroid.current());
 	s._increaseWebviewHeight = j.value("increaseWebviewHeight", defaults._increaseWebviewHeight.current());
@@ -1113,6 +1169,8 @@ void from_json(const nlohmann::json &j, AyuSettings &s) {
 	s._showEmojiButtonInMessageField = j.value("showEmojiButtonInMessageField", defaults._showEmojiButtonInMessageField.current());
 	s._showMicrophoneButtonInMessageField = j.value("showMicrophoneButtonInMessageField", defaults._showMicrophoneButtonInMessageField.current());
 	s._showAutoDeleteButtonInMessageField = j.value("showAutoDeleteButtonInMessageField", defaults._showAutoDeleteButtonInMessageField.current());
+	s._showGiftButtonInMessageField = j.value("showGiftButtonInMessageField", defaults._showGiftButtonInMessageField.current());
+	s._showAiEditorButtonInMessageField = j.value("showAiEditorButtonInMessageField", defaults._showAiEditorButtonInMessageField.current());
 	s._showAttachPopup = j.value("showAttachPopup", defaults._showAttachPopup.current());
 	s._showEmojiPopup = j.value("showEmojiPopup", defaults._showEmojiPopup.current());
 	s._showMyProfileInDrawer = j.value("showMyProfileInDrawer", defaults._showMyProfileInDrawer.current());
