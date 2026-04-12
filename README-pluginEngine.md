@@ -48,7 +48,7 @@ struct MemData
 struct AyuPlugin
 {
 	wchar_t name[128]; // plugin name (will be shown when plugin loads)
-	wchar_t description[255]; // plugin description, for future use
+	wchar_t description[255]; // plugin description (shown in user GUI)
 	wchar_t moduleName[128]; // module name, for future use
 	MemData memData; // MemData struct 
 };
@@ -64,6 +64,33 @@ When a plugin loads, AyuGram process gets that structure and:
 
 ### DLLMain
 DLLMain should return True if the plugin wants to load. It can be set to false, if you want to restrict load, for example.
+
+### GUI operations
+If you want for the user to be able to open a page with your Plugin's GUI, you can do so by declaring a `doDrawGUI` function.<br>
+```cpp
+// will be run once user goes to plugin settings
+// no "addToQueue" is required, since we're doing it already on main thread
+EXTERN_DLL_EXPORT void doDrawGUI(Settings::Builder::SectionBuilder& builder, Settings::AyBuilder::AyuSectionBuilder& ayu, Settings::PLEPlugins* ple){
+    builder.addDivider();
+    builder.addDividerText(rpl::single(QString("Hello from PLEngine!")));
+    builder.addButton({ 
+        .title = rpl::single(QString("Test button from plugin")),
+        .label = rpl::single(QString("I'm cool")),
+        .onClick = [=] {
+            MessageBoxA(NULL, "Hello!", "user interaction!!", MB_OK);
+         }
+        });
+    builder.addSkip();
+    builder.addDivider();
+}
+```
+Please note: not all builder features are exported, and with forced linking, they can cause Access Violation exceptions.<br>
+This is why, in this example (for now), we're using MessageBox, and not `builder.controller()->showToast`.<br>
+See [Settings::Builder](/Telegram/SourceFiles/ayu/features/settings/builder.h) for more details on what you can do with it, and what features are exported.<br>
+Or, take a look at code using Settings::Builder, and try to replicate it by yourself. <br>
+This is a new and not fully developed feature, so expect some crashes if you try to use it, and report them if you do.<br>
+This function will be executed on the main thread, when the user clicks the Plugin button in settings, so you don't have to worry about thread-safety here.<br>
+Below your GUI, an informational piece of GUI will be always shown for user experience purposes. You can't do anything about it. <br>
 
 ### Main Loop and Thread-safe operations
 Remember: plugins always work in a separate thread, and have VERY LITTLE ACCESS to AyuGram's memory.<br>
