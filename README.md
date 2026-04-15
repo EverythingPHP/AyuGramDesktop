@@ -1,5 +1,6 @@
 # AyuGram with Plugin Engine (PLEngine)
 [Plugin Engine documentation](README-pluginEngine.md) <br>
+[Telegram - @ayuplugg](https://t.me/ayuplugg)<br>
 <img width="497" height="747" alt="изображение" src="https://github.com/user-attachments/assets/bb8e981c-5941-4b66-9b63-3fc9958b8091" />
 
 
