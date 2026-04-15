@@ -32,7 +32,7 @@ This part of source code is based on Ayugram's sources by Radolyn.
 namespace Settings {
 
 using namespace Builder;
-using namespace Settings::AyBuilder;
+using namespace Settings::AyuBuilder;
 PLESettings* settings = PLESettings::getInstance();
 
 namespace {

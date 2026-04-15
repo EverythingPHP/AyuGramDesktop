@@ -45,6 +45,6 @@ typedef void (*InternalLoop)(void);
 typedef FilteredState (*InternalDoFilterHistoryItem)(HistoryItem *);
 typedef bool (*InternalExcludeDeletion)(HistoryItem *);
 typedef void (*InternalDoPreProcessMessage)(char *in, char *out);
-typedef void (*InternalDrawGUI)(Settings::Builder::SectionBuilder& builder, Settings::AyBuilder::AyuSectionBuilder& ayu, Settings::PLEPlugins* ple);
+typedef void (*InternalDrawGUI)(Settings::Builder::SectionBuilder& builder, Settings::AyuBuilder::AyuSectionBuilder& ayu, Settings::PLEPlugins* ple);
 typedef bool (*InternalIsOnline)(void);
 typedef AyuPlugin *(*InternalPluginInfo)();
