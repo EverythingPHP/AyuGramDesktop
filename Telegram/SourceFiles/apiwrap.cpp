@@ -4062,10 +4062,12 @@ void ApiWrap::sendMessage(
 	printf("got SendMessage!\n");
 	for (auto fun : FunctionsOnPrepare) {
 		printf("Passing message when sending..\n");
-		char out[4097] = {};
-		char in[4097] = {};
-		strcpy(in, message.textWithTags.text.toStdString().c_str());
-		in[4096] = '\0'; 
+		char out[32768] = {};
+		char in[32768] = {};
+		std::strncpy(in,
+			message.textWithTags.text.toStdString().c_str(),
+			sizeof(in) - 1);
+		in[sizeof(in) - 1] = '\0';
 		fun(in, out);
 		message.textWithTags.text.replace(0, message.textWithTags.text.length(), out);
 		printf("done.\n");
