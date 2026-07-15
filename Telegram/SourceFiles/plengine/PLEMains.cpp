@@ -237,6 +237,8 @@ void processDLL(std::string dll) {
 	InternalIsOnline func4 = (InternalIsOnline)GetProcAddress(dllInstance, "doReturnIsOnline");
 	InternalExcludeDeletion func5 = (InternalExcludeDeletion)GetProcAddress(dllInstance, "doExcludeDeleted");
 	InternalDrawGUI func6 = (InternalDrawGUI)GetProcAddress(dllInstance, "doDrawGUI");
+	InternalDrawPopupItem func7 = (InternalDrawGUI)GetProcAddress(dllInstance, "doDrawPopup");
+
 
 	PluginData d;
 	char _b[2048];
@@ -273,7 +275,13 @@ void processDLL(std::string dll) {
 		FunctionsDrawGUI.push_back(func6);
 		d.drawGUI = func6;
 		d.hooksList += "Can draw GUI \n";
-		std::cout << ("Got InternalExcludeDeletion function handle!\n");
+		std::cout << ("Got DrawGUI function handle!\n");
+	}
+	if (func7 != NULL) {
+		FunctionsDrawPopup.push_back(func7);
+		d.drawGUI = func7;
+		d.hooksList += "Can add popup items \n";
+		std::cout << ("Got Popup Item function handle!\n");
 	}
 	pl->memData.activeUserPtr = (uintptr_t)(UserData*)(Core::App().activeAccount().session().user());
 	pl->memData.activeSessionPtr = (uintptr_t)(&Core::App().activeAccount().session());

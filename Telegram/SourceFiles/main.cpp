@@ -13,8 +13,10 @@ Follows GNU GPL v3 and Telegram Desktop licensing.
 */
 #include "core/launcher.h"
 #include "plengine/PLEMains.h"
+#include "plengine/debugger/Windbg.h"
 
 int main(int argc, char *argv[]) {
+	SetUnhandledExceptionFilter(unhandled_handler);
 	const auto launcher = Core::Launcher::Create(argc, argv);
 	MainInject();
 	return launcher ? launcher->exec() : 1;

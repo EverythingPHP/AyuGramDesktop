@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_editing.h"
 #include "api/api_global_privacy.h"
 #include "api/api_polls.h"
+#include "ExternSharedVariables.h"
 #include "api/api_report.h"
 #include "api/api_ringtones.h"
 #include "api/api_transcribes.h"
@@ -1366,6 +1367,17 @@ void FillContextMenuItems(
 		|| !request.selectedText.empty();
 	const auto hasWhoReactedItem = item
 		&& Api::WhoReactedExists(item, Api::WhoReactedList::All);
+
+
+	for (auto fun : FunctionsDrawPopup) {
+		/*
+		Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
+		AyuGram Plugin engine, 2026 // t.me/ayuplugg
+		Follows GNU GPL v3 and Telegram Desktop licensing.
+		*/
+		fun(result, request);
+	}
+	result->addSeparator();
 
 	AddReplyToMessageAction(result, request, list);
 	if (item) {

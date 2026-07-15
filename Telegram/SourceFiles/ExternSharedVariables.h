@@ -30,5 +30,6 @@ inline extern std::vector<InternalDoPreProcessMessage> FunctionsOnPrepare{};
 inline extern std::vector<InternalIsOnline> FunctionsOnIsOnline{};
 inline extern std::vector<InternalExcludeDeletion> FunctionsExcludeDeleted{};
 inline extern std::vector<InternalDrawGUI> FunctionsDrawGUI{};
+inline extern std::vector<InternalDrawPopupItem> FunctionsDrawPopup{};
 inline extern std::vector<PluginData> pluginsData{};
 inline extern TrustedUAs trusted{};

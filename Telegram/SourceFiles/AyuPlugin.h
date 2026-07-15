@@ -15,6 +15,7 @@ Follows GNU GPL v3 and Telegram Desktop licensing.
 */
 
 #include <cstdint>
+#include <history/view/history_view_context_menu.h>
 typedef void (*ExAddToQueue)(const std::function<void()> &func);
 
 struct MemData
@@ -45,6 +46,7 @@ typedef void (*InternalLoop)(void);
 typedef FilteredState (*InternalDoFilterHistoryItem)(HistoryItem *);
 typedef bool (*InternalExcludeDeletion)(HistoryItem *);
 typedef void (*InternalDoPreProcessMessage)(char *in, char *out);
+typedef void (*InternalDrawPopupItem)(Ui::PopupMenu* popupMenu, const ContextMenuRequest& request);
 typedef void (*InternalDrawGUI)(Settings::Builder::SectionBuilder& builder, Settings::AyuBuilder::AyuSectionBuilder& ayu, Settings::PLEPlugins* ple);
 typedef bool (*InternalIsOnline)(void);
 typedef AyuPlugin *(*InternalPluginInfo)();
