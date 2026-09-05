@@ -28,6 +28,7 @@ This part of source code is based on Ayugram's sources by Radolyn.
 #include "window/window_session_controller_link_info.h"
 
 #include <QDesktopServices>
+#include <ShlObj.h>
 
 namespace Settings {
 
@@ -37,6 +38,51 @@ PLESettings* settings = PLESettings::getInstance();
 
 namespace {
 
+std::string OpenFileDialogue() {
+	IFileOpenDialog* pfd;
+	HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog,
+		NULL,
+		CLSCTX_INPROC_SERVER,
+		IID_PPV_ARGS(&pfd));
+	if (SUCCEEDED(hr))
+	{
+		DWORD dwOptions;
+		hr = pfd->GetOptions(&dwOptions);
+		if (SUCCEEDED(hr))
+		{
+			hr = pfd->SetOptions(dwOptions | FOS_ALLOWMULTISELECT);
+		}
+		if (SUCCEEDED(hr))
+		{
+			hr = pfd->Show(NULL);
+			if (SUCCEEDED(hr))
+			{
+				IShellItemArray* psiaResults;
+				hr = pfd->GetResults(&psiaResults);
+				if (SUCCEEDED(hr))
+				{
+					DWORD a;
+					psiaResults->GetCount(&a);
+					if (a != 0) {
+						IShellItem* res;
+						psiaResults->GetItemAt(0, &res);
+						PWSTR pszFilePath = nullptr;
+						hr = res->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+						if (SUCCEEDED(hr)) {
+							char fn[1025];
+							wcstombs(fn, pszFilePath, 1024);
+							return std::string(fn);
+						}
+					}
+
+					psiaResults->Release();
+				}
+			}
+		}
+		pfd->Release();
+	}
+	return std::string();
+}
 	
 void BuildCategories(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 	builder.addSkip();
@@ -59,6 +105,25 @@ void BuildCategories(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 		.title = rpl::single(QString("Disable security features in HTTP API")),
 		.getter = []() {return settings->apiSecEnabled(); },
 		.setter = [](bool val) {settings->setapiSecEnabled(val); }
+		});
+
+	builder.addSkip();
+	builder.addDividerText(rpl::single(QString("HTTPS requires valid SSL certificates in PEM to be loaded.\nPLEngine does ot validate SSL certificate data.\nThe UI updates the state of the certificates on startup: that's why after selecting you may see old cert's.\nRestart to apply any changes.")));
+	builder.addSkip();
+	builder.addButton({
+		.id = u"ple/apiCert"_q,
+		.title = rpl::single(QString::fromStdString(std::string("HTTPS Certificate: "+ settings->apiCert()) )),
+		.onClick = ([=] {
+			settings->setCert(OpenFileDialogue());
+		})
+		});
+	builder.addSkip();
+	builder.addButton({
+		.id = u"ple/apiKey"_q,
+		.title = rpl::single(QString::fromStdString(std::string("HTTPS Key: " + settings->apiKey()))),
+		.onClick = ([=] {
+			settings->setKey(OpenFileDialogue());
+		})
 		});
 	builder.addSkip();
 }

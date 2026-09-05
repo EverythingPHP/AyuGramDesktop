@@ -3,6 +3,8 @@ Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
 AyuGram Plugin engine, 2026 // t.me/ayuplugg
 Follows GNU GPL v3 and Telegram Desktop licensing.
 */
+
+
 #include "PLEMains.h"
 #include "scheme.h"
 #include <core/application.h>
@@ -10,13 +12,13 @@ Follows GNU GPL v3 and Telegram Desktop licensing.
 #include <base/unixtime.h>
 #include <Shlwapi.h>
 #include "shellapi.h"
+#include "plengine/helpers/MixedServer.h"
 #undef small // since Small is used by data_session in TGAPI, and it's conflicting with shellapi
 #include "MainQueue.h"
 #include <ayu/utils/telegram_helpers.h>
 #include "main/main_session.h"
 #include "api/api_updates.h"
 #include <stddef.h>
-#include "httplib.h"
 #include <thread>
 #include "main/main_domain.h"
 #include "crl/crl_on_main.h"
@@ -65,7 +67,6 @@ namespace ns {
 
 std::vector<std::string> fileNames = {};
 int pollingRate = 1000; // ms
-httplib::Server svr;
 
 ApiWrap* activeAccWrapper;
 SharedMemHelper memHelper;
@@ -237,7 +238,7 @@ void processDLL(std::string dll) {
 	InternalIsOnline func4 = (InternalIsOnline)GetProcAddress(dllInstance, "doReturnIsOnline");
 	InternalExcludeDeletion func5 = (InternalExcludeDeletion)GetProcAddress(dllInstance, "doExcludeDeleted");
 	InternalDrawGUI func6 = (InternalDrawGUI)GetProcAddress(dllInstance, "doDrawGUI");
-	InternalDrawPopupItem func7 = (InternalDrawGUI)GetProcAddress(dllInstance, "doDrawPopup");
+	InternalDrawPopupItem func7 = (InternalDrawPopupItem)GetProcAddress(dllInstance, "doDrawPopup");
 
 
 	PluginData d;
@@ -279,7 +280,7 @@ void processDLL(std::string dll) {
 	}
 	if (func7 != NULL) {
 		FunctionsDrawPopup.push_back(func7);
-		d.drawGUI = func7;
+		d.drawPopupItem = func7;
 		d.hooksList += "Can add popup items \n";
 		std::cout << ("Got Popup Item function handle!\n");
 	}
@@ -308,12 +309,32 @@ void processDLL(std::string dll) {
 	}
 }
 
+
 void listenHTTP() {
-	svr.Get("/api/ping",
+	MixedServer ms;
+
+	char cert[1025]{};
+	GetEnvironmentVariableA("AYUPL_SSL_CERT", cert, sizeof(cert));
+	char key[1025]{};
+	GetEnvironmentVariableA("AYUPL_SSL_KEY", key, sizeof(key));
+	char host[128]{};
+	GetEnvironmentVariableA("AYUPL_HOST", host, sizeof(host));
+	char port[8]{};
+	GetEnvironmentVariableA("AYUPL_PORT", port, sizeof(port));
+	int portx = atoi(port);
+	bool val = portx >= 1 && portx < 65535;
+	if (!val) {
+		std::cout << "Port is not specified, API is disabled\r\n";
+		return;
+	}
+
+	ms.Init(host, cert, key);
+	
+	ms.Get("/api/ping",
 		[](const httplib::Request&, httplib::Response& res)
 		{ res.set_content(OKResponse(), "application/json"); });
 
-	svr.Get("/api/runtime/setPolling",
+	ms.Get("/api/runtime/setPolling",
 		[](const httplib::Request& req, httplib::Response& res)
 		{
 			std::string ua = getUA(req);
@@ -331,7 +352,7 @@ void listenHTTP() {
 				"application/json");
 		});
 
-	svr.Get("/api/runtime/load",
+	ms.Get("/api/runtime/load",
 		[](const httplib::Request& req, httplib::Response& res)
 		{
 			std::string ua = getUA(req);
@@ -349,7 +370,7 @@ void listenHTTP() {
 				"application/json");
 		});
 
-	svr.Get("/api/runtime/export",
+	ms.Get("/api/runtime/export",
 		[](const httplib::Request& req, httplib::Response& res)
 		{
 			std::string ua = getUA(req);
@@ -364,7 +385,7 @@ void listenHTTP() {
 				"application/json");
 		});
 
-	svr.Get("/api/session/get",
+	ms.Get("/api/session/get",
 		[](const httplib::Request& req, httplib::Response& res)
 		{
 			std::string ua = getUA(req);
@@ -400,17 +421,7 @@ void listenHTTP() {
 				OKResponse(good, good ? "" : "User rejected trust elevation request.", good ? response.dump() : "null"),
 				"application/json");
 		});
-	char host[128];
-	GetEnvironmentVariableA("AYUPL_HOST", host, 127);
-	char port[6];
-	GetEnvironmentVariableA("AYUPL_PORT", port, 5);
-	int portx = atoi(port);
-	bool val = portx >= 1 && portx < 65535;
-	if (!val) {
-		std::cout << "Port is not specified, API is disabled\r\n";
-		return;
-	}
-	svr.listen(host, val ? portx : 8080);
+	ms.Listen(val ? portx : 8080);
 }
 
 
@@ -418,6 +429,11 @@ void listenHTTP() {
 void loadKnownPlugins() {
 	std::cout << ("Sleeping for 5 seconds, then loading the plugins..\n\n");
 	Sleep(5000);
+	while (!Core::App().wasRan) {
+		std::cout << ("Application was not loaded yet. Waiting for 3 more seconds..\n");
+		Sleep(3000);
+	}
+	
 	for (auto b : fileNames) {
 		std::cout << ((std::string("Loading ") + b + std::string("\n")).c_str());
 

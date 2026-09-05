@@ -3,10 +3,15 @@
 #include <ayu/ui/settings/ayu_builder.h>
 #include <settings/settings_builder.h>
 #include <plengine/settings/settings_plugins.h>
+#include <plengine/helpers/PseudoPopup.h>
+#include <history\view\history_view_context_menu.h>
+#include <ui\widgets\popup_menu.h>
+#include <cstdint>
 
 #ifdef AYUPLUGIN
 #define EXTERN_DLL_EXPORT extern "C" __declspec(dllexport)
 #endif
+
 
 /*
 Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
@@ -14,8 +19,6 @@ AyuGram Plugin engine, 2026 // t.me/ayuplugg
 Follows GNU GPL v3 and Telegram Desktop licensing.
 */
 
-#include <cstdint>
-#include <history/view/history_view_context_menu.h>
 typedef void (*ExAddToQueue)(const std::function<void()> &func);
 
 struct MemData
@@ -45,8 +48,8 @@ typedef void (*InternalSetup)(void);
 typedef void (*InternalLoop)(void);
 typedef FilteredState (*InternalDoFilterHistoryItem)(HistoryItem *);
 typedef bool (*InternalExcludeDeletion)(HistoryItem *);
-typedef void (*InternalDoPreProcessMessage)(char *in, char *out);
-typedef void (*InternalDrawPopupItem)(Ui::PopupMenu* popupMenu, const ContextMenuRequest& request);
+typedef void (*InternalDoPreProcessMessage)(std::string *in, std::string* out);
+typedef void (*InternalDrawPopupItem)(Ui::PseudoPopup* popupMenu, HistoryItem* i);
 typedef void (*InternalDrawGUI)(Settings::Builder::SectionBuilder& builder, Settings::AyuBuilder::AyuSectionBuilder& ayu, Settings::PLEPlugins* ple);
 typedef bool (*InternalIsOnline)(void);
 typedef AyuPlugin *(*InternalPluginInfo)();

@@ -13,6 +13,8 @@ class PLESettings
 	private:
 		bool _consoleEnabled = isEnvSet("AYUPL_CONSOLE");
 		bool _apiEnabled = isEnvSet("AYUPL_PORT");
+		std::string _apiCert = std::string(getenv("AYUPL_SSL_CERT") != nullptr ? getenv("AYUPL_SSL_CERT") : "");
+		std::string _apiKey = std::string(getenv("AYUPL_SSL_KEY") != nullptr ? getenv("AYUPL_SSL_KEY") : "");
 		bool _apiSecEnabled = isEnvSet("AYUPL_DISABLESECURITYFEATURES");
 		inline static PLESettings* instancePtr = nullptr;
 
@@ -20,6 +22,8 @@ class PLESettings
 			_consoleEnabled = isEnvSet("AYUPL_CONSOLE");
 			_apiEnabled = isEnvSet("AYUPL_PORT");
 			_apiSecEnabled = isEnvSet("AYUPL_DISABLESECURITYFEATURES");
+			_apiCert = std::string(getenv("AYUPL_SSL_CERT") != nullptr ? getenv("AYUPL_SSL_CERT") : "");
+			_apiKey = std::string(getenv("AYUPL_SSL_KEY") != nullptr ? getenv("AYUPL_SSL_KEY") : "");
 		}
 	public:
 		PLESettings(const PLESettings& obj) = delete;
@@ -32,6 +36,20 @@ class PLESettings
 
 		static bool isEnvSet(std::string name) {
 			return getenv(name.c_str()) != nullptr && std::string(getenv(name.c_str())) != "" && std::string(getenv(name.c_str())) != "0";
+		}
+		inline std::string apiCert() {
+			return _apiCert;
+		}
+		inline std::string apiKey() {
+			return _apiKey;
+		}
+		inline void setCert(std::string val) {
+			_apiCert = val;
+			writeRegistryEnv("AYUPL_SSL_CERT", _apiCert);
+		}
+		inline void setKey(std::string val) {
+			_apiKey = val;
+			writeRegistryEnv("AYUPL_SSL_KEY", _apiKey);
 		}
 
 		inline bool consoleEnabled() {

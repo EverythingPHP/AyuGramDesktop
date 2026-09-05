@@ -23,6 +23,7 @@ struct PluginData {
 	bool usesHooks = false;
 	std::string hooksList;
 	InternalDrawGUI drawGUI = nullptr;
+	InternalDrawPopupItem drawPopupItem = nullptr;
 };
 
 inline extern std::vector<InternalDoFilterHistoryItem> FunctionsOnFilter{};

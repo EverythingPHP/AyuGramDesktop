@@ -537,6 +537,7 @@ void Application::processCreatedWindow(
 	if (AyuFeatures::StreamerMode::isEnabled()) {
 		AyuFeatures::StreamerMode::hideWidgetWindow(window->widget());
 	}
+	wasRan = true;
 }
 
 void Application::startMediaView() {

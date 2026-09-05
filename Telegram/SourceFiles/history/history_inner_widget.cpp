@@ -7,8 +7,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/history_inner_widget.h"
 
+#include <ExternSharedVariables.h>
 #include "api/api_polls.h"
 #include "chat_helpers/stickers_emoji_pack.h"
+#include <plengine/helpers/PseudoPopup.h>
 #include "core/application.h"
 #include "core/file_utilities.h"
 #include "core/click_handler_types.h"
@@ -2785,7 +2787,16 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 				}
 			}
 		}
+		Ui::PseudoPopup p = Ui::PseudoPopup(_menu);
 
+		for (auto fun : FunctionsDrawPopup) {
+			/*
+			Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
+			AyuGram Plugin engine, 2026 // t.me/ayuplugg
+			Follows GNU GPL v3 and Telegram Desktop licensing.
+			*/
+			fun(&p, item);
+		}
 		AyuUi::AddHistoryAction(_menu, item);
 		AyuUi::AddHideMessageAction(_menu, item);
 		AyuUi::AddUserMessagesAction(_menu, item);

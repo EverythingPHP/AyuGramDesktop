@@ -1368,17 +1368,7 @@ void FillContextMenuItems(
 	const auto hasWhoReactedItem = item
 		&& Api::WhoReactedExists(item, Api::WhoReactedList::All);
 
-
-	for (auto fun : FunctionsDrawPopup) {
-		/*
-		Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
-		AyuGram Plugin engine, 2026 // t.me/ayuplugg
-		Follows GNU GPL v3 and Telegram Desktop licensing.
-		*/
-		fun(result, request);
-	}
 	result->addSeparator();
-
 	AddReplyToMessageAction(result, request, list);
 	if (item) {
 		const auto media = item->media();

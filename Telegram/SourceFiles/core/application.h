@@ -142,7 +142,7 @@ public:
 
 	[[nodiscard]] Settings &settings();
 	[[nodiscard]] const Settings &settings() const;
-
+	bool wasRan = false;
 
 	void run();
 
