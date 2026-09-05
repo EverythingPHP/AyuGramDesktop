@@ -45,6 +45,8 @@ namespace Window {
 class SessionNavigation;
 } // namespace Window
 
+struct HistoryMessageMarkupData;
+
 struct PreparedServiceText {
 	TextWithEntities text;
 	std::vector<ClickHandlerPtr> links;
@@ -98,6 +100,7 @@ void CheckPollVoteNotificationSchedule(
 [[nodiscard]] TextWithEntities EnsureNonEmpty(
 	const TextWithEntities &text = TextWithEntities());
 [[nodiscard]] TextWithEntities UnsupportedMessageText();
+[[nodiscard]] HistoryMessageMarkupData UnsupportedMessageMarkup();
 
 void RequestDependentMessageItem(
 	not_null<HistoryItem*> item,
@@ -125,6 +128,17 @@ void RequestDependentMessageStory(
 	not_null<History*> history,
 	FullReplyTo replyTo);
 [[nodiscard]] bool LookupReplyIsTopicPost(HistoryItem *replyTo);
+[[nodiscard]] bool ShowEphemeralReplyTextOnlyError(
+	std::shared_ptr<ChatHelpers::Show> show,
+	not_null<Main::Session*> session,
+	FullMsgId replyToId);
+void StripEphemeralReply(
+	not_null<Main::Session*> session,
+	FullReplyTo &replyTo);
+void ConfirmDeleteSelectedEphemeral(
+	std::shared_ptr<ChatHelpers::Show> show,
+	std::vector<not_null<HistoryItem*>> items,
+	Fn<void()> confirmed);
 
 struct SendingErrorRequest {
 	MsgId topicRootId = 0;
@@ -133,6 +147,8 @@ struct SendingErrorRequest {
 	const TextWithTags *text = nullptr;
 	int messagesCount = 0;
 	bool ignoreSlowmodeCountdown = false;
+	bool richMessage = false;
+	bool ignoreRestrictions = false;
 };
 [[nodiscard]] int ComputeSendingMessagesCount(
 	not_null<History*> history,

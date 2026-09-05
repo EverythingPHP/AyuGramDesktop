@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_boxes.h"
 #include "styles/style_chat.h"
 #include "styles/style_chat_helpers.h"
+#include "styles/style_chat_style.h"
 #include "styles/style_layers.h"
 
 namespace Ui {
@@ -175,8 +176,19 @@ void AbstractSingleMediaPreview::paintEvent(QPaintEvent *e) {
 		}
 	});
 
+	auto hq = std::optional<PainterHighQualityEnabler>();
 	if (drawBackground()) {
 		const auto &padding = st::boxPhotoPadding;
+		const auto bgRect = QRect(
+			padding.left(),
+			0,
+			width() - padding.left() - padding.right(),
+			height());
+		const auto radius = st::bubbleRadiusSmall;
+		auto clipPath = QPainterPath();
+		clipPath.addRoundedRect(bgRect, radius, radius);
+		hq.emplace(p);
+		p.setClipPath(clipPath);
 		if (_previewLeft > padding.left()) {
 			p.fillRect(
 				padding.left(),

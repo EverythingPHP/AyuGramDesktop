@@ -632,7 +632,9 @@ FillMenuResult AttachSendMenuEffect(
 		? AttachSelectorToMenu(
 			menu,
 			position,
-			st::reactPanelEmojiPan,
+			(details.effectsPan
+				? *details.effectsPan
+				: st::reactPanelEmojiPan),
 			show,
 			LookupPossibleEffects(&show->session()),
 			{ tr::lng_effect_add_title(tr::now) },
@@ -749,7 +751,7 @@ FillMenuResult FillSendMenu(
 		const auto &ghost = maybeShow
 			? AyuSettings::ghost(&maybeShow->session())
 			: AyuSettings::ghost();
-		const auto sendWithoutSound = ghost.sendWithoutSound();
+		const auto sendWithoutSound = ghost.shouldSendWithoutSound();
 		menu->addAction(
 			sendWithoutSound ? tr::ayu_SendWithSound(tr::now) : tr::lng_send_silent_message(tr::now),
 			[=] { action({ Api::SendOptions{ .silent = true } }, details); },

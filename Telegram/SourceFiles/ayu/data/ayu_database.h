@@ -28,6 +28,8 @@ bool hasRevisions(ID userId, ID dialogId, ID messageId);
 void addDeletedMessage(const DeletedMessage &message);
 std::vector<DeletedMessage> getDeletedMessages(ID userId, ID dialogId, ID topicId, ID minId, ID maxId, int totalLimit, const std::string &searchQuery = "");
 bool hasDeletedMessages(ID userId, ID dialogId, ID topicId);
+void removeDeletedMessage(ID userId, ID dialogId, ID messageId);
+void clearDeletedMessages(ID userId, ID dialogId, ID topicId);
 
 std::vector<RegexFilter> getAllRegexFilters();
 RegexFilter getById(std::vector<char> id);

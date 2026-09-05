@@ -8,6 +8,7 @@
 
 #include "apiwrap.h"
 #include "lang_auto.h"
+#include "ayu/features/forward/ayu_forward_rich.h"
 #include "ayu/features/forward/ayu_sync.h"
 #include "ayu/utils/telegram_helpers.h"
 #include "base/random.h"
@@ -33,7 +34,7 @@ std::unordered_map<PeerId, std::shared_ptr<ForwardState>> forwardStates;
 bool isForwarding(const PeerId &id) {
 	const auto fwState = forwardStates.find(id);
 	if (id.value && fwState != forwardStates.end()) {
-		const auto state = *fwState->second;
+		const auto &state = *fwState->second;
 
 		return state.state != ForwardState::State::Finished
 			&& state.currentChunk < state.totalChunks
@@ -108,27 +109,38 @@ void ForwardState::updateBottomBar(const Main::Session &session, const PeerId *p
 static Ui::PreparedList prepareMedia(not_null<Main::Session*> session,
 									 const std::vector<not_null<HistoryItem*>> &items,
 									 int &i,
-									 std::vector<not_null<Data::Media*>> &groupMedia) {
-	const auto prepare = [&](not_null<Data::Media*> media)
+									 std::vector<not_null<Data::Media*>> &groupMedia,
+									 const AyuSync::DocumentPaths &documentPaths) {
+	auto list = Ui::PreparedList();
+	const auto append = [&](not_null<Data::Media*> media)
 	{
-		groupMedia.emplace_back(media);
-		auto prepared = Ui::PreparedFile(AyuSync::filePath(session, media));
+		auto path = QString();
+		const auto document = media->document();
+		if (document) {
+			const auto j = documentPaths.find(document);
+			if (j != documentPaths.end()) {
+				path = j->second;
+			}
+		} else if (const auto photo = media->photo()) {
+			path = AyuSync::filePath(session, photo);
+		}
+		auto prepared = Ui::PreparedFile(path);
 		if (prepared.path.isEmpty()) {
-			// otherwise will fail assertion in PrepareDetails
-			return prepared;
+			return;
+		}
+		if (document) {
+			prepared.displayName = AyuSync::documentFileName(document);
 		}
 		Storage::PrepareDetails(prepared, st::sendMediaPreviewSize, PhotoSideLimit());
-		return prepared;
+		groupMedia.emplace_back(media);
+		list.files.emplace_back(std::move(prepared));
 	};
 
 	const auto startItem = items[i];
 	const auto media = startItem->media();
 	const auto groupId = startItem->groupId();
 
-	Ui::PreparedList list;
-	if (auto prepared = prepare(media); !prepared.path.isEmpty()) {
-		list.files.emplace_back(std::move(prepared));
-	}
+	append(media);
 
 	if (!groupId.value) {
 		return list;
@@ -140,9 +152,7 @@ static Ui::PreparedList prepareMedia(not_null<Main::Session*> session,
 			break;
 		}
 		if (const auto nextMedia = nextItem->media()) {
-			if (auto prepared = prepare(nextMedia); !prepared.path.isEmpty()) {
-				list.files.emplace_back(std::move(prepared));
-			}
+			append(nextMedia);
 			i = k;
 		}
 	}
@@ -156,7 +166,7 @@ void sendMedia(
 	Api::MessageToSend &&message,
 	bool sendImagesAsPhotos) {
 	if (const auto document = primaryMedia->document(); document && document->sticker()) {
-		AyuSync::sendStickerSync(session, message, document);
+		AyuSync::sendStickerSync(session, std::move(message), document);
 		return;
 	}
 
@@ -245,12 +255,17 @@ void intelligentForward(
 	const Api::SendAction &action,
 	const Data::ResolvedForwardDraft &draft) {
 	const auto history = action.history;
-	crl::on_main([&]
+	const auto topicRootId = action.replyTo.topicRootId;
+	const auto monoforumPeerId = action.replyTo.monoforumPeerId;
+	crl::on_main([=]
 	{
-		history->setForwardDraft(action.replyTo.topicRootId, action.replyTo.monoforumPeerId, {});
+		history->setForwardDraft(topicRootId, monoforumPeerId, {});
 	});
 
 	const auto items = draft.items;
+	if (items.empty()) {
+		return;
+	}
 	const auto peer = history->peer;
 
 	auto chunks = std::vector<ForwardChunk>();
@@ -312,9 +327,11 @@ void forwardMessages(
 	const auto history = action.history;
 	const auto peer = history->peer;
 
-	crl::on_main([&]
+	const auto topicRootId = action.replyTo.topicRootId;
+	const auto monoforumPeerId = action.replyTo.monoforumPeerId;
+	crl::on_main([=]
 	{
-		history->setForwardDraft(action.replyTo.topicRootId, action.replyTo.monoforumPeerId, {});
+		history->setForwardDraft(topicRootId, monoforumPeerId, {});
 	});
 
 	std::shared_ptr<ForwardState> state;
@@ -331,7 +348,6 @@ void forwardMessages(
 
 	std::vector<not_null<HistoryItem*>> toBeDownloaded;
 
-
 	for (const auto item : items) {
 		if (mediaDownloadable(item->media())) {
 			toBeDownloaded.push_back(item);
@@ -346,12 +362,19 @@ void forwardMessages(
 		}
 	}
 	state->totalMessages = items.size();
+	auto documentPaths = AyuSync::DocumentPaths();
 	if (!toBeDownloaded.empty()) {
 		state->state = ForwardState::State::Downloading;
 		state->updateBottomBar(*session, &peer->id, ForwardState::State::Downloading);
-		AyuSync::loadDocuments(session, toBeDownloaded);
+		documentPaths = AyuSync::loadDocuments(
+			session,
+			toBeDownloaded,
+			[state] { return state->stopRequested.load(); });
 	}
-
+	if (state->stopRequested) {
+		state->updateBottomBar(*session, &peer->id, ForwardState::State::Finished);
+		return;
+	}
 
 	state->sentMessages = 0;
 	state->updateBottomBar(*session, &peer->id, ForwardState::State::Sending);
@@ -363,56 +386,105 @@ void forwardMessages(
 			state->updateBottomBar(*session, &peer->id, ForwardState::State::Finished);
 			return;
 		}
+		const auto updateProgress = gsl::finally([&] {
+			if (state->stopRequested) {
+				return;
+			}
+			state->sentMessages = i + 1;
+			state->updateBottomBar(
+				*session,
+				&peer->id,
+				ForwardState::State::Sending);
+		});
+
+		if (item->richPage()) {
+			state->updateBottomBar(*session, &peer->id, ForwardState::State::Downloading);
+
+			const auto sent = forwardRichMessage(session, item->fullId(), action, [state]
+			{
+				return state->stopRequested.load();
+			});
+
+			if (state->stopRequested) {
+				state->updateBottomBar(*session, &peer->id, ForwardState::State::Finished);
+				return;
+			}
+
+			state->updateBottomBar(*session, &peer->id, ForwardState::State::Sending);
+
+			if (sent) {
+				continue;
+			}
+		}
 
 		auto extractedText = extractText(item);
 		if (extractedText.empty() && !mediaDownloadable(item->media())) {
 			continue;
 		}
 
-		auto message = Api::MessageToSend(Api::SendAction(session->data().history(peer->id)));
+		auto message = Api::MessageToSend(action);
 		message.action.options.invertCaption = item->invertMedia();
-		message.action.replyTo = action.replyTo;
+		message.action.options.scheduled = 0;
+		message.action.options.suggest = {};
+		message.action.options.effectId = 0;
+		message.action.replaceMediaOf = 0;
 
 		if (draft.options != Data::ForwardOptions::NoNamesAndCaptions) {
 			message.textWithTags = extractedText;
 		}
 
 		if (!mediaDownloadable(item->media())) {
-			AyuSync::sendMessageSync(session, message);
+			AyuSync::sendMessageSync(session, std::move(message));
 		} else if (const auto media = item->media()) {
 			if (media->poll()) {
-				AyuSync::sendMessageSync(session, message);
+				AyuSync::sendMessageSync(session, std::move(message));
 				continue;
 			}
 
 			std::vector<not_null<Data::Media*>> groupMedia;
-			auto preparedMedia = prepareMedia(session, items, i, groupMedia);
-
-			Ui::SendFilesWay way;
-			way.setGroupFiles(true);
-			way.setSendImagesAsPhotos(false);
-			for (const auto &media2 : groupMedia) {
-				if (media2->photo()) {
-					way.setSendImagesAsPhotos(true);
-					break;
-				}
-			}
+			auto preparedMedia = prepareMedia(
+				session,
+				items,
+				i,
+				groupMedia,
+				documentPaths);
 
 			// remove not finished files
-			for (int j = preparedMedia.files.size() - 1; j >= 0; j--) {
-				auto &file = preparedMedia.files[j];
+			for (auto j = int(preparedMedia.files.size()); j != 0;) {
+				--j;
+				const auto &file = preparedMedia.files[j];
 
-				QFile f(file.path);
-				if (
-                    (groupMedia[j]->photo() && f.size() < groupMedia[j]->photo()->imageByteSize(Data::PhotoSize::Large)) ||
-					(groupMedia[j]->document() && f.size() < groupMedia[j]->document()->size)
-				) {
+				const auto fileInfo = QFileInfo(file.path);
+				const auto photo = groupMedia[j]->photo();
+				const auto document = groupMedia[j]->document();
+				const auto incompletePhoto = photo
+					&& (!fileInfo.isFile()
+						|| fileInfo.size()
+							< photo->imageByteSize(Data::PhotoSize::Large));
+				const auto incompleteDocument = document
+					&& (!fileInfo.isFile()
+						|| fileInfo.size() != document->size);
+				if (incompletePhoto || incompleteDocument) {
 					preparedMedia.files.erase(preparedMedia.files.begin() + j);
+					groupMedia.erase(groupMedia.begin() + j);
 				}
 			}
 
 			if (preparedMedia.files.empty()) {
+				if (!message.textWithTags.empty()) {
+					AyuSync::sendMessageSync(session, std::move(message));
+				}
 				continue;
+			}
+
+			auto way = Ui::SendFilesWay();
+			way.setGroupFiles(true);
+			way.setSendImagesAsPhotos(false);
+			for (const auto &groupItem : groupMedia) {
+				if (groupItem->photo()) {
+					way.setSendImagesAsPhotos(true);
+					break;
+				}
 			}
 
 			auto groups = Ui::DivideByGroups(
@@ -424,15 +496,17 @@ void forwardMessages(
 				std::move(groups),
 				way,
 				false);
-			sendMedia(session, bundle, media, std::move(message), way.sendImagesAsPhotos());
+			sendMedia(
+				session,
+				bundle,
+				groupMedia.front(),
+				std::move(message),
+				way.sendImagesAsPhotos());
 		}
 		// if there are grouped messages
 		// "i" is incremented in prepareMedia
-
-		state->sentMessages = i + 1;
-		state->updateBottomBar(*session, &peer->id, ForwardState::State::Sending);
 	}
 	state->updateBottomBar(*session, &peer->id, ForwardState::State::Finished);
 }
 
-} // namespace AyuFeatures::AyuForward
+} // namespace AyuForward

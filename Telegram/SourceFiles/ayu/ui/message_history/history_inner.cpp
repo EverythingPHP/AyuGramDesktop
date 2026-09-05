@@ -562,6 +562,19 @@ void InnerWidget::elementOpenDocument(
 	_controller->openDocument(document, showInMediaView, {context});
 }
 
+bool InnerWidget::elementScrollToLocalY(
+		not_null<const Element*> view,
+		int localTop) {
+	const auto currentScrollHeight = _visibleBottom - _visibleTop;
+	const auto wanted = std::max(
+		std::min(itemTop(view) + localTop, height() - currentScrollHeight),
+		0);
+	if (wanted != _visibleTop) {
+		_scrollToSignal.fire_copy(wanted);
+	}
+	return true;
+}
+
 void InnerWidget::elementCancelUpload(const FullMsgId &context) {
 	if (const auto item = session().data().message(context)) {
 		_controller->cancelUploadLayer(item);
@@ -571,6 +584,12 @@ void InnerWidget::elementCancelUpload(const FullMsgId &context) {
 void InnerWidget::elementShowTooltip(
 	const TextWithEntities &text,
 	Fn<void()> hiddenCallback) {
+}
+
+void InnerWidget::elementShowHiddenSenderTooltip(
+		FullMsgId itemId,
+		const TextWithEntities &text) {
+	_controller->showToast(TextWithEntities(text));
 }
 
 bool InnerWidget::elementAnimationsPaused() {
@@ -634,6 +653,17 @@ bool InnerWidget::elementHideTopicButton(not_null<const Element*> view) {
 }
 
 void InnerWidget::saveState(not_null<SectionMemento*> memento) {
+	if (!_item) {
+		memento->setItems({}, {}, false, true);
+		memento->setSearchQuery(base::take(_searchQuery));
+		_items.clear();
+		_messageIds.clear();
+		_itemsByData.clear();
+		_upLoaded = false;
+		_downLoaded = true;
+		return;
+	}
+
 	for (auto &item : _items) {
 		item.clearView();
 	}
@@ -648,6 +678,21 @@ void InnerWidget::saveState(not_null<SectionMemento*> memento) {
 }
 
 void InnerWidget::restoreState(not_null<SectionMemento*> memento) {
+	if (!_item) {
+		_items.clear();
+		_messageIds.clear();
+		_itemsByData.clear();
+		_itemDates.clear();
+		_upLoaded = false;
+		_downLoaded = true;
+		_searchQuery = memento->takeSearchQuery();
+		updateMinMaxIds();
+		updateEmptyText();
+		updateSize();
+		preloadMore(Direction::Up);
+		return;
+	}
+
 	_items = memento->takeItems();
 	for (auto &item : _items) {
 		item.refreshView(this);

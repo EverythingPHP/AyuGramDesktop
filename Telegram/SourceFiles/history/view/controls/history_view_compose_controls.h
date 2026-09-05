@@ -68,6 +68,7 @@ class EmojiButton;
 class SendAsButton;
 class SilentToggle;
 class DropdownMenu;
+struct PreparedBundle;
 struct PreparedList;
 struct SendStarButtonState;
 class ReactionFlyAnimation;
@@ -83,6 +84,10 @@ class Session;
 struct SendAsKey;
 } // namespace Main
 
+namespace Iv {
+struct RichPage;
+} // namespace Iv
+
 namespace Webrtc {
 enum class RecordAvailability : uchar;
 } // namespace Webrtc
@@ -97,12 +102,14 @@ enum class SendProgressType;
 } // namespace Api
 
 namespace HistoryView::Controls {
+class RichDraftPreview;
 class VoiceRecordBar;
 class TTLButton;
 class WebpageProcessor;
 class CharactersLimitLabel;
 class ComposeAiButton;
-class AiTooltipManager;
+class ComposeTooltipManager;
+using AiTooltipManager = ComposeTooltipManager;
 } // namespace HistoryView::Controls
 
 namespace HistoryView {
@@ -196,6 +203,11 @@ public:
 	[[nodiscard]] rpl::producer<QString> sendCommandRequests() const;
 	[[nodiscard]] rpl::producer<MessageToEdit> editRequests() const;
 	[[nodiscard]] rpl::producer<std::optional<bool>> attachRequests() const;
+	void setSendAsFileConfirmed(
+		Fn<void(
+			std::shared_ptr<Ui::PreparedBundle>,
+			Api::SendOptions)> confirmed);
+	void processChosenSticker(FileChosen &&chosen);
 	[[nodiscard]] rpl::producer<FileChosen> fileChosen() const;
 	[[nodiscard]] rpl::producer<PhotoChosen> photoChosen() const;
 	[[nodiscard]] rpl::producer<FullReplyTo> jumpToItemRequests() const;
@@ -251,6 +263,7 @@ public:
 
 	[[nodiscard]] TextWithTags getTextWithAppliedMarkdown() const;
 	[[nodiscard]] Data::WebPageDraft webPageDraft() const;
+	[[nodiscard]] std::shared_ptr<const Iv::RichPage> shownRichMessage() const;
 	void setText(const TextWithTags &text);
 	void clear();
 	void hidePanelsAnimated();
@@ -319,6 +332,7 @@ private:
 	void updateControlsParents();
 	void updateSubmitSettings();
 	void updateSendButtonType();
+	void updateSendLockBadge();
 	void updateMessagesTTLShown();
 	bool updateSendAsButton(std::shared_ptr<Data::GroupCall> videoStream);
 	void updateAttachBotsMenu();
@@ -328,6 +342,21 @@ private:
 	void updateControlsGeometry(QSize size);
 	void updateAiButtonVisibility();
 	void updateAiButtonGeometry();
+	void initSendAsFileButton();
+	void fireSendTextAsFile(
+		const QString &fileText,
+		Fn<void()> restoreText);
+	[[nodiscard]] bool checkLargeTextPaste(
+		not_null<const QMimeData*> data,
+		Ui::InputField::MimeAction action);
+	void updateSendAsFileVisibility();
+	void updateSendAsFileGeometry();
+	void initExpandButton();
+	void updateExpandButtonVisibility();
+	void updateExpandButtonGeometry();
+	void initDiscardRichDraftButton();
+	void updateDiscardRichDraftVisibility();
+	void updateDiscardRichDraftGeometry();
 	void setupSendMenu(
 		not_null<Ui::RpWidget*> button,
 		Fn<void(Api::SendOptions)> send);
@@ -351,10 +380,12 @@ private:
 
 	void escape();
 	void fieldChanged();
+	[[nodiscard]] bool suppressSendAction() const;
 	void toggleTabbedSelectorMode();
 	void createTabbedPanel();
 	void setTabbedPanel(std::unique_ptr<ChatHelpers::TabbedPanel> panel);
 	void showAiComposeBox();
+	void triggerAiApplyInPlace();
 	[[nodiscard]] bool canSendAiComposeDirect() const;
 
 	[[nodiscard]] bool showRecordButton() const;
@@ -362,7 +393,12 @@ private:
 	[[nodiscard]] int shownStarsPerMessage() const;
 	bool updateBotCommandShown();
 	bool updateLikeShown();
+	[[nodiscard]] bool hasVisibleSendText() const;
+	[[nodiscard]] bool hasSendableContent() const;
+	[[nodiscard]] bool hideExtraButtons() const;
 	[[nodiscard]] bool hasEnoughLinesForAi() const;
+	[[nodiscard]] bool hasEnoughLinesForExpand() const;
+	[[nodiscard]] bool textExceedsMaxSize() const;
 
 	void cancelInlineBot();
 	void clearInlineBot();
@@ -388,6 +424,7 @@ private:
 	void saveDraftDelayed();
 	void saveDraftWithTextNow();
 	void saveCloudDraft();
+	void cancelPendingDraftSaves();
 
 	void writeDrafts();
 	void writeDraftTexts();
@@ -403,9 +440,24 @@ private:
 
 	void unregisterDraftSources();
 	void registerDraftSource();
+	void untrackThreadFieldVisibility();
+	void trackThreadFieldVisibility();
+	void updateFieldVisibility();
 	void changeFocusedControl();
 
 	void checkCharsLimitation();
+	[[nodiscard]] Data::Draft *cloudDraft() const;
+	[[nodiscard]] bool isComposeBoxOpen() const;
+	[[nodiscard]] bool hasRichDraftThreadScope() const;
+	[[nodiscard]] bool isShortcutComposeEligible() const;
+	[[nodiscard]] bool bypassNormalDraftHandling() const;
+	[[nodiscard]] bool hasEditDraft() const;
+	[[nodiscard]] bool shouldShowRichDraftPreview() const;
+	void clearRichDraft();
+	void migrateFieldToRichEditor();
+	void migrateScheduledFieldToRichEditor();
+	void migrateShortcutFieldToRichEditor(
+		BusinessShortcutId expectedShortcutId);
 
 	const style::ComposeControls &_st;
 	ChatHelpers::ComposeFeatures _features;
@@ -440,7 +492,11 @@ private:
 	std::optional<Ui::RoundRect> _backgroundRect;
 
 	const std::shared_ptr<Ui::SendButton> _send;
+	rpl::event_stream<bool> _sendLockBadge;
 	Controls::ComposeAiButton * const _aiButton = nullptr;
+	Ui::IconButton * const _sendAsFile = nullptr;
+	Ui::IconButton * const _expand = nullptr;
+	Ui::IconButton * const _discardRichDraft = nullptr;
 	Ui::IconButton *_editStars = nullptr;
 	Ui::IconButton *_like = nullptr;
 	rpl::variable<int> _minStarsCount;
@@ -458,6 +514,7 @@ private:
 	const not_null<Ui::EmojiButton*> _tabbedSelectorToggle;
 	rpl::producer<QString> _fieldCustomPlaceholder;
 	const not_null<Ui::InputField*> _field;
+	std::unique_ptr<Controls::RichDraftPreview> _richDraftPreview;
 	Ui::IconButton * const _botCommandStart = nullptr;
 	std::unique_ptr<Ui::SendAsButton> _sendAs;
 	rpl::variable<bool> _videoStreamAdmin;
@@ -476,6 +533,7 @@ private:
 	const std::unique_ptr<FieldHeader> _header;
 	const std::unique_ptr<Controls::VoiceRecordBar> _voiceRecordBar;
 	std::unique_ptr<Controls::AiTooltipManager> _aiTooltipManager;
+	std::unique_ptr<Controls::AiTooltipManager> _sendAsFileTooltipManager;
 	std::shared_ptr<Ui::ChatStyle> _chatStyle;
 
 	const Fn<SendMenu::Details()> _sendMenuDetails;
@@ -491,6 +549,7 @@ private:
 	rpl::event_stream<not_null<QKeyEvent*>> _scrollKeyEvents;
 	rpl::event_stream<not_null<QKeyEvent*>> _editLastMessageRequests;
 	rpl::event_stream<std::optional<bool>> _attachRequests;
+	Fn<void(std::shared_ptr<Ui::PreparedBundle>, Api::SendOptions)> _sendAsFileConfirmed;
 	rpl::event_stream<> _likeToggled;
 	rpl::event_stream<ReplyNextRequest> _replyNextRequests;
 	rpl::event_stream<> _focusRequests;
@@ -526,8 +585,11 @@ private:
 	bool _canAddMedia = false;
 
 	std::unique_ptr<Controls::WebpageProcessor> _preview;
+	bool _previewShown = false;
+	bool _threadFieldVisible = false;
 
 	rpl::lifetime _historyLifetime;
+	rpl::lifetime _threadFieldVisibleLifetime;
 	rpl::lifetime _uploaderSubscriptions;
 
 };

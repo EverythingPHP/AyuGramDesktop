@@ -19,8 +19,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_item.h"
 #include "history/history.h"
 #include "core/file_location.h"
+#include "core/application.h"
 #include "core/mime_type.h"
 #include "main/main_session.h"
+#include "storage/storage_account.h"
 #include "apiwrap.h"
 
 namespace Storage {
@@ -264,14 +266,16 @@ void Uploader::sendProgressUpdate(
 		Api::SendProgressType type,
 		int progress) {
 	const auto history = item->history();
-	auto &manager = _api->session().sendProgressManager();
-	manager.update(history, type, progress);
-	if (const auto replyTo = item->replyToTop()) {
-		if (history->peer->isMegagroup()) {
-			manager.update(history, replyTo, type, progress);
+	if (!item->isEphemeral()) {
+		auto &manager = _api->session().sendProgressManager();
+		manager.update(history, type, progress);
+		if (const auto replyTo = item->replyToTop()) {
+			if (history->peer->isMegagroup()) {
+				manager.update(history, replyTo, type, progress);
+			}
+		} else if (history->isForum()) {
+			manager.update(history, item->topicRootId(), type, progress);
 		}
-	} else if (history->isForum()) {
-		manager.update(history, item->topicRootId(), type, progress);
 	}
 	_api->session().data().requestItemRepaint(item);
 }
@@ -331,6 +335,22 @@ void Uploader::upload(
 		}
 		if (!file->filepath.isEmpty()) {
 			document->setLocation(Core::FileLocation(file->filepath));
+		} else if (!file->content.isEmpty()
+			&& !document->saveToCache()
+			&& !document->useStreamingLoader()
+			&& Core::App().canSaveFileWithoutAskingForPath()) {
+			const auto path = DocumentFileNameForSave(document);
+			if (!path.isEmpty()) {
+				auto f = QFile(path);
+				if (f.open(QIODevice::WriteOnly)
+					&& f.write(file->content) == file->content.size()) {
+					f.close();
+					document->setLocation(Core::FileLocation(path));
+					session().local().writeFileLocation(
+						document->mediaKey(),
+						Core::FileLocation(path));
+				}
+			}
 		}
 		if (file->type == SendMediaType::ThemeFile) {
 			document->checkWallPaperProperties();

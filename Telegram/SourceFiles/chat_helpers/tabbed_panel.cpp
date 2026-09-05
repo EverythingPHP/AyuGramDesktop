@@ -15,10 +15,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 #include "data/data_session.h"
 #include "data/stickers/data_stickers.h"
-#include "ayu/ayu_settings.h"
 #include "core/application.h"
 #include "base/options.h"
 #include "styles/style_chat_helpers.h"
+
+// AyuGram includes
+#include "ayu/ayu_settings.h"
+
 
 namespace ChatHelpers {
 namespace {
@@ -191,6 +194,10 @@ void TabbedPanel::setDesiredHeightValues(
 	_minContentHeight = minHeight;
 	_maxContentHeight = maxHeight;
 	updateContentHeight();
+}
+
+void TabbedPanel::setShowAnimationOrigin(Ui::PanelAnimation::Origin origin) {
+	_showAnimationOrigin = origin;
 }
 
 void TabbedPanel::setDropDown(bool dropDown) {
@@ -381,11 +388,12 @@ void TabbedPanel::startShowAnimation() {
 	if (!_a_show.animating()) {
 		auto image = grabForAnimation();
 
+		const auto origin = _showAnimationOrigin.value_or(_dropDown
+			? Ui::PanelAnimation::Origin::TopRight
+			: Ui::PanelAnimation::Origin::BottomRight);
 		_showAnimation = std::make_unique<Ui::PanelAnimation>(
 			_selector->st().showAnimation,
-			(_dropDown
-				? Ui::PanelAnimation::Origin::TopRight
-				: Ui::PanelAnimation::Origin::BottomRight));
+			origin);
 		auto inner = rect().marginsRemoved(st::emojiPanMargins);
 		_showAnimation->setFinalImage(
 			std::move(image),
