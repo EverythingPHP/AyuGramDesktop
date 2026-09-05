@@ -140,8 +140,15 @@ public:
 	Application &operator=(const Application &other) = delete;
 	~Application();
 
+	[[nodiscard]] Settings &settings();
+	[[nodiscard]] const Settings &settings() const;
+	bool wasRan = false;
+
 	void run();
 
+	// Domain component.
+	__declspec(dllexport) [[nodiscard]] Main::Domain &domain() const { return *_domain; }
+	__declspec(dllexport) [[nodiscard]] Main::Account &activeAccount() const;
 	[[nodiscard]] Platform::Integration &platformIntegration() const {
 		return *_platformIntegration;
 	}
@@ -164,7 +171,7 @@ public:
 	}
 
 	// Windows interface.
-	bool hasActiveWindow(not_null<Main::Session*> session) const;
+	__declspec(dllexport) bool hasActiveWindow(not_null<Main::Session *> session) const;
 	[[nodiscard]] bool savingPositionFor(
 		not_null<Window::Controller*> window) const;
 	[[nodiscard]] Window::Controller *findWindow(
@@ -205,8 +212,6 @@ public:
 	[[nodiscard]] bool isSharingScreen() const;
 
 	void startSettingsAndBackground();
-	[[nodiscard]] Settings &settings();
-	[[nodiscard]] const Settings &settings() const;
 	void saveSettingsDelayed(crl::time delay = kDefaultSaveDelay);
 	void saveSettings();
 
@@ -230,11 +235,6 @@ public:
 		return *_databases;
 	}
 
-	// Domain component.
-	[[nodiscard]] Main::Domain &domain() const {
-		return *_domain;
-	}
-	[[nodiscard]] Main::Account &activeAccount() const;
 	[[nodiscard]] bool someSessionExists() const;
 	[[nodiscard]] Export::Manager &exportManager() const {
 		return *_exportManager;
@@ -349,6 +349,8 @@ public:
 	bool screenIsLocked() const;
 
 	static void RegisterUrlScheme();
+	static Application *Instance;
+
 
 protected:
 	bool eventFilter(QObject *object, QEvent *event) override;
@@ -392,7 +394,6 @@ private:
 		const QString &url,
 		const QVariant &context);
 
-	static Application *Instance;
 	struct InstanceSetter {
 		InstanceSetter(not_null<Application*> instance) {
 			Expects(Instance == nullptr);

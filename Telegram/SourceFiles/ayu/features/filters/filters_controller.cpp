@@ -19,6 +19,7 @@
 #include "history/history_item.h"
 #include "history/history_item_components.h"
 #include "unicode/regex.h"
+#include <ExternSharedVariables.h>
 
 #include <memory>
 #include <unordered_set>
@@ -150,9 +151,24 @@ bool isBlocked(const not_null<PeerData*> peer) {
 }
 
 bool filtered(const not_null<HistoryItem*> item) {
+	/*
+	Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
+	AyuGram Plugin engine, 2026 // t.me/ayuplugg
+	Follows GNU GPL v3 and Telegram Desktop licensing.
+	*/
+
+	for (size_t i = 0; i < FunctionsOnFilter.size(); i++) {
+		auto FoF = FunctionsOnFilter.at(i)(item);
+		if (FoF == FilteredState::Filtered) {
+			return true;
+		} else if (FoF == FilteredState::RejectFurtherFiltering) {
+			return false;
+		}
+  }
 	if (showingFilteredMessages.contains(item->history()->peer->id.value)) {
 		return false;
-	}
+  }
+	
 
 	const auto &settings = AyuSettings::getInstance();
 	if (!settings.filtersEnabled()) {
@@ -180,6 +196,11 @@ bool filtered(const not_null<HistoryItem*> item) {
 		FilterUtils::extractAllText(item, group),
 		getDialogIdFromPeer(item->history()->peer),
 		cache);
+	if(isFiltered(item->from()->about(), getDialogIdFromPeer(item->history()->peer), cache).value_or(false) ||
+		isFiltered(item->from()->name(), getDialogIdFromPeer(item->history()->peer), cache).value_or(false)) {
+		FiltersCacheController::putFiltered(item, group, true, cache);
+		return true;
+	}
 
 	// sometimes item has empty text.
 	// so we cache result only if

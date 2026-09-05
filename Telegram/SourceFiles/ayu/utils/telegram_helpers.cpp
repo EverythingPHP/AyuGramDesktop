@@ -51,6 +51,7 @@
 #include "ui/text/format_values.h"
 #include "ui/text/text_entity.h"
 #include "ui/toast/toast.h"
+#include <ExternSharedVariables.h>
 #include "window/window_controller.h"
 
 #include <atomic>
@@ -724,7 +725,14 @@ bool isMessageSavable(const not_null<HistoryItem*> item) {
 	return true;
 }
 
-void processMessageDelete(not_null<HistoryItem*> item) {
+void processMessageDelete(not_null<HistoryItem *> item) {
+
+	for (auto fun : FunctionsExcludeDeleted) {
+		if (fun(item)) {
+			item->destroy();
+			return;
+		}
+	}
 	if (!isMessageSavable(item)) {
 		item->destroy();
 	} else {

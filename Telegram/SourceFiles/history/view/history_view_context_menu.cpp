@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_editing.h"
 #include "api/api_global_privacy.h"
 #include "api/api_polls.h"
+#include "ExternSharedVariables.h"
 #include "api/api_report.h"
 #include "api/api_ringtones.h"
 #include "api/api_transcribes.h"
@@ -1510,6 +1511,7 @@ void FillContextMenuItems(
 	const auto hasWhoReactedItem = item
 		&& Api::WhoReactedExists(item, Api::WhoReactedList::All);
 
+	result->addSeparator();
 	AddReplyToMessageAction(result, request, list);
 	if (item) {
 		const auto media = item->media();

@@ -6043,9 +6043,8 @@ void HistoryWidget::reportSelectedMessages() {
 	clearSelected();
 	controller()->clearChooseReportMessages();
 	if (done) {
-		done(ranges::views::all(
-			ids
-		) | ranges::views::transform(&FullMsgId::msg) | ranges::to_vector);
+		auto view = ids | std::views::transform(&FullMsgId::msg);
+		done(std::vector(view.begin(), view.end()));
 	}
 }
 

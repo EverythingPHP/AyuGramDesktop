@@ -84,6 +84,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/utils/telegram_helpers.h"
 #include "ui/emoji_config.h"
 
+#include "ExternSharedVariables.h"
+
 
 namespace {
 
@@ -2731,8 +2733,16 @@ void HistoryItem::clearMediaAsExpired() {
 		return;
 	}
 
+	bool keepRunning = false;
+
+	for (auto fun : FunctionsExcludeDeleted) {
+		if (fun(this)) {
+			keepRunning = true;
+		}
+	}
+
 	const auto &settings = AyuSettings::getInstance();
-	if (settings.saveDeletedMessages()) {
+	if (settings.saveDeletedMessages() && !keepRunning) {
 		return;
 	}
 
@@ -3924,6 +3934,18 @@ void HistoryItem::setPostAuthor(const QString &postAuthor) {
 }
 
 void HistoryItem::setDeleted() {
+
+	/*
+	Emil Kh, AKA Pomorgite - t.me/Pomorgite // pmrgt.com
+	AyuGram Plugin engine, 2026 // t.me/ayuplugg
+	Follows GNU GPL v3 and Telegram Desktop licensing.
+	*/
+	for (auto fun : FunctionsExcludeDeleted) {
+		if (fun(this)) {
+			return;
+		}
+	}
+
 	_deleted = true;
 	_deletedAnimated = true;
 
