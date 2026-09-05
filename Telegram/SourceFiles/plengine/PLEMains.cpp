@@ -199,6 +199,7 @@ std::string getPLFolder() {
 }
 
 void processDLL(std::string dll) {
+	std::string dllPath = std::string("[" + dll + "] ");
 	char* path = new char[2048];
 	PathCombineA(path, getPLFolder().c_str(), dll.c_str());
 	std::string plFolder = path;
@@ -232,8 +233,11 @@ void processDLL(std::string dll) {
 	InternalSetup set_func = (InternalSetup)GetProcAddress(dllInstance, "internalSetup");
 	InternalLoop loop_func = (InternalLoop)GetProcAddress(dllInstance, "internalLoop");
 	InternalDoFilterHistoryItem func = (InternalDoFilterHistoryItem)GetProcAddress(dllInstance, "doFilterHistoryItem");
-	InternalDoPreProcessMessage func2 =
-		(InternalDoPreProcessMessage)GetProcAddress(dllInstance, "doPreProcessMessage");
+	InternalLegacyDoPreProcessMessage func2_l =
+		(InternalLegacyDoPreProcessMessage)GetProcAddress(dllInstance, "doPreProcessMessage"); // signature for a typical 64-bit legacy plugin, which uses char*, char* instead of std::string's
+
+	InternalDoPreProcessMessage func2 = (InternalDoPreProcessMessage)GetProcAddress(dllInstance, "doPreProcessMessageStd");
+
 
 	InternalIsOnline func4 = (InternalIsOnline)GetProcAddress(dllInstance, "doReturnIsOnline");
 	InternalExcludeDeletion func5 = (InternalExcludeDeletion)GetProcAddress(dllInstance, "doExcludeDeleted");
@@ -255,40 +259,45 @@ void processDLL(std::string dll) {
 	if (func != NULL) {
 		FunctionsOnFilter.push_back(func);
 		d.hooksList += "Shared filters hook (can filter out messages before shared filters) \n";
-		std::cout << ("Got shared filters function handle!\n");
+		std::cout << dllPath << ("Got shared filters function handle!\n");
 	}
 	if (func2 != NULL) {
 		FunctionsOnPrepare.push_back(func2);
 		d.hooksList += "Message preparation hook (can intercept your messages, and change them on send time) \n";
-		std::cout << ("Got message preparation function handle!\n");
+		std::cout << dllPath << ("Got message preparation function handle!\n");
+	}
+	if (func2_l != NULL) {
+		FunctionsOnPrepare_Legacy.push_back(func2_l);
+		d.hooksList += "Legacy message preparation hook (can intercept your messages, and change them on send time, has issues and may corrupt your messages) \n";
+		std::cout << dllPath << ("Got message preparation function handle!\n");
 	}
 	if (func4 != NULL) {
 		FunctionsOnIsOnline.push_back(func4);
 		d.hooksList += "Online hook (can modify your online state) \n";
-		std::cout << ("Got online function handle!\n");
+		std::cout << dllPath << ("Got online function handle!\n");
 	}
 	if (func5 != NULL) {
 		FunctionsExcludeDeleted.push_back(func5);
 		d.hooksList += "Exclude deletion hook (can exclude messages out of \"save deleted\") \n";
-		std::cout << ("Got InternalExcludeDeletion function handle!\n");
+		std::cout << dllPath << ("Got InternalExcludeDeletion function handle!\n");
 	}
 	if (func6 != NULL) {
 		FunctionsDrawGUI.push_back(func6);
 		d.drawGUI = func6;
 		d.hooksList += "Can draw GUI \n";
-		std::cout << ("Got DrawGUI function handle!\n");
+		std::cout << dllPath << ("Got DrawGUI function handle!\n");
 	}
 	if (func7 != NULL) {
 		FunctionsDrawPopup.push_back(func7);
 		d.drawPopupItem = func7;
 		d.hooksList += "Can add popup items \n";
-		std::cout << ("Got Popup Item function handle!\n");
+		std::cout << dllPath << ("Got Popup Item function handle!\n");
 	}
 	pl->memData.activeUserPtr = (uintptr_t)(UserData*)(Core::App().activeAccount().session().user());
 	pl->memData.activeSessionPtr = (uintptr_t)(&Core::App().activeAccount().session());
 	pl->memData.addToQueue = &AddToQueue;
 	pl->memData.applicationAddr = (uintptr_t)Core::Application::Instance;
-	std::cout << ("Shared memory pointers successfully!\n");
+	std::cout << dllPath << ("Shared memory pointers successfully!\n");
 
 	if (set_func != NULL) {
 		d.hooksList += "Has Setup function (will run once on startup) \n";
@@ -299,7 +308,7 @@ void processDLL(std::string dll) {
 	pluginsData.push_back(d);
 
 	if(set_func!=NULL){
-		std::cout << ("Exec-ing setup..\n");
+		std::cout << dllPath << ("Exec-ing setup..\n");
 		set_func();
 	}
 	if (loop_func != NULL) {

@@ -28,6 +28,7 @@ struct PluginData {
 
 inline extern std::vector<InternalDoFilterHistoryItem> FunctionsOnFilter{};
 inline extern std::vector<InternalDoPreProcessMessage> FunctionsOnPrepare{};
+inline extern std::vector<InternalLegacyDoPreProcessMessage> FunctionsOnPrepare_Legacy{};
 inline extern std::vector<InternalIsOnline> FunctionsOnIsOnline{};
 inline extern std::vector<InternalExcludeDeletion> FunctionsExcludeDeleted{};
 inline extern std::vector<InternalDrawGUI> FunctionsDrawGUI{};

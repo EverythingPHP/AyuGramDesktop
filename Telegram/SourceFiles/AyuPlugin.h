@@ -49,6 +49,7 @@ typedef void (*InternalLoop)(void);
 typedef FilteredState (*InternalDoFilterHistoryItem)(HistoryItem *);
 typedef bool (*InternalExcludeDeletion)(HistoryItem *);
 typedef void (*InternalDoPreProcessMessage)(std::string *in, std::string* out);
+typedef void (*InternalLegacyDoPreProcessMessage)(char* in, char* out);
 typedef void (*InternalDrawPopupItem)(Ui::PseudoPopup* popupMenu, HistoryItem* i);
 typedef void (*InternalDrawGUI)(Settings::Builder::SectionBuilder& builder, Settings::AyuBuilder::AyuSectionBuilder& ayu, Settings::PLEPlugins* ple);
 typedef bool (*InternalIsOnline)(void);

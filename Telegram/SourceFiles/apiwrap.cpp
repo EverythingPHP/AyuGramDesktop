@@ -98,6 +98,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/utils/telegram_helpers.h"
 #include "ayu/features/forward/ayu_forward.h"
 #include "ExternSharedVariables.h"
+#include <iostream>
 
 
 namespace {
@@ -4060,6 +4061,26 @@ void ApiWrap::sendMessage(
 		std::optional<MsgId> localMessageId) {
   
 	printf("got SendMessage!\n");
+	for (auto fun : FunctionsOnPrepare_Legacy) {
+		printf("Passing message when sending (legacy)..\n");
+		char out[32768] = {};
+		char in[32768] = {};
+		std::strncpy(in,
+			message.textWithTags.text.toStdString().c_str(),
+			sizeof(in) - 1);
+		in[sizeof(in) - 1] = '\0';
+		fun(in, out);
+		std::cout << out << "\n";
+		if (message.textWithTags.text.length() > strlen(out) && strlen(out) >8) {
+			// message may have been corrupted; attempting to fix
+			printf("fixing corrupted message..\n");
+			message.textWithTags.text.assign((std::string(out).substr(0, strlen(out) - 8) + message.textWithTags.text.toStdString().substr(strlen(out) - 8, message.textWithTags.text.length())));
+		}
+		else {
+			message.textWithTags.text.assign(out);
+		}
+		printf("done.\n");
+	}
 	for (auto fun : FunctionsOnPrepare) {
 		printf("Passing message when sending..\n");
 		std::string out{};
